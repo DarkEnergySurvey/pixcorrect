@@ -1,0 +1,41 @@
+Testing bar
+===========
+
+Begin by creating a random starting image::
+  >>> import numpy as np
+  >>> import pyfits
+  >>> 
+  >>> imsize = (2048, 4096)
+  >>> np.random.seed(6563)
+  >>> 
+  >>> data1 = 2*np.random.random(imsize)-1
+  >>> hdu1 = pyfits.PrimaryHDU(data1)
+  >>> hdu1.header.set('FORALL', True)
+  >>> hdu1.header.set('TREE', 'oak')
+
+Create an hdu in which to put the result::
+  >>> hdu3 = pyfits.ImageHDU(np.empty_like(hdu1.data))
+
+Create a configuration file from which to get the coefficient::
+  >>> from ConfigParser import SafeConfigParser
+  >>> coeff = 656.28
+  >>> config = SafeConfigParser()
+  >>> config.add_section('bar')
+  >>> config.set('bar', 'coeff', "%f" % coeff)
+
+Actually run bar::
+  >>> from pixcorrect.bar import bar
+  >>> bar(hdu1, hdu3, config)
+
+
+Compare the result (now in hdu3.data) with what we
+get for the same calculation done with just numpy::
+  >>> result_ref = hdu1.data*coeff
+  >>> difference = hdu3.data - result_ref
+  >>> print np.amin(difference)
+  0.0
+  >>> print np.amax(difference)
+  0.0
+
+
+

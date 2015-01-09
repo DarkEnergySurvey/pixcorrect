@@ -1,0 +1,16 @@
+FILE = TABLE
+PRODUCT = pixcorrect
+
+Group:
+   FLAVOR = Linux
+      QUALIFIERS = ""
+Common:
+  ACTION = setup
+    envSetIfNotSet(PYTHONVERS, 2.7)
+    #
+    proddir()
+    setupenv()
+    pathPrepend(PATH, ${UPS_PROD_DIR}/bin)
+    pathPrepend(PYTHONPATH, ${UPS_PROD_DIR}/lib/python${PYTHONVERS}/site-packages)
+    pathPrepend(LD_LIBRARY_PATH, ${UPS_PROD_DIR}/lib)
+End:
