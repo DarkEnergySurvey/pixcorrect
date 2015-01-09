@@ -21,7 +21,7 @@ Create a configuration file from which to get the coefficient::
   >>> coeff = 656.28
   >>> config = SafeConfigParser()
   >>> config.add_section('bar')
-  >>> config.set('bar', 'coeff', "%f" % coeff)
+  >>> config.set('bar', 'bar_coeff', "%f" % coeff)
 
 Actually run bar::
   >>> from pixcorrect.bar import bar

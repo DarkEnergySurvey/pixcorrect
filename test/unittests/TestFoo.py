@@ -37,7 +37,7 @@ class TestFoo(TestCase):
         config.add_section('foo')
         config.set('foo', 'im2_fname', im2_fname)
         config.set('foo', 'im2_hdu', '0')
-        config.set('foo', 'coeff', "%f" % self.coeff)
+        config.set('foo', 'foo_coeff', "%f" % self.coeff)
         return config
 
     def make_hdu1(self):
