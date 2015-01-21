@@ -1,3 +1,4 @@
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/lib/python2.7/site-packages)
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/test/unittests)
 envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)

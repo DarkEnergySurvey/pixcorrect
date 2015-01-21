@@ -1,4 +1,7 @@
-all: libfoo.so libbar.so
+all: libfoo.so libbar.so libharmonic_mean.so
+
+libharmonic_mean.so: harmonic_mean.c
+	$(CC) $(CFLAGS) -lm -shared -fPIC -o libharmonic_mean.so harmonic_mean.c
 
 libfoo.so: foo.c
 	$(CC) $(CFLAGS) -shared -fPIC -o libfoo.so foo.c
