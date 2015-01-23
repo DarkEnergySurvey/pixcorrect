@@ -1,25 +1,74 @@
+################################################################################
+# Makefile for despyfits
+################################################################################
+
+################################################################################
+# Install and include locations.
+################################################################################
+
 SHELL=/bin/sh
+INCLUDE := ./include
+LIB := ./lib
+SRC := ./src
 
-DIRS=src test
+################################################################################
+# Headers changes in which should force rebuilds
+################################################################################
+HEADERS := mask_bits.h desimage.h
 
-#
-# The pattern of this makefile is to call a subordinate makefile for
-# each of the tasks, if a Makefile is is present in the subordinate
-# directory, else to to the task. Install is an exception.
-#
+################################################################################
+# Explore our environment
+################################################################################
 
-all: build localinstall
+# Define Flavor Shared lib extension
+FLAVOR = $(shell uname -s) # this give either Darwin/Linux
+$(info Discovered FLAVOR: $(FLAVOR))
+ifneq (,$(findstring Darwin, ${FLAVOR}))
+   SHLIB_SUFFIX = dylib
+endif 
+ifneq (,$(findstring Linux, ${FLAVOR}))
+   SHLIB_SUFFIX = so
+endif 
 
-build: 
-	for d in $(DIRS) ; do if [ -e $$d/Makefile ] ; then (cd $$d;$(MAKE) $(MAKEFLAGS) CFLAGS="$(CFLAGS)" CC="$(CC)" all ) fi ; done
+# Paths to search for dependecies:
+vpath %.h $(INCLUDE)
+vpath %.o $(LIB)
 
-clean: tidy
-	for d in $(DIRS) ; do if [ -e $$d/Makefile ] ; then (cd $$d;$(MAKE) $(MAKEFLAGS) clean  ) fi ; done
+################################################################################
+# C flags
+################################################################################
+CC :=		gcc
+CFLAGS := 	-O3 -g -Wall -shared -fPIC
+
+override CFLAGS += $(addprefix -I ,$(INCLUDE))
+override CFLAGS += $(addprefix -L ,$(LIBS))
+
+################################################################################
+# The libraries we are to make
+################################################################################
+SHLIBS = $(LIB)/libharmonic_mean.$(SHLIB_SUFFIX) \
+	 $(LIB)/libbpm.$(SHLIB_SUFFIX) \
+	 $(LIB)/libfixcol.$(SHLIB_SUFFIX) \
+	 $(LIB)/libfoo.$(SHLIB_SUFFIX) \
+	 $(LIB)/libbar.$(SHLIB_SUFFIX)
+
+################################################################################
+# The rule to actually make the libraries
+################################################################################
+$(LIB)/%.$(SHLIB_SUFFIX) : $(SRC)/%.c $(HEADERS)
+	$(CC) $(CFLAGS) $< -o $@
+
+################################################################################
+# Generic rules
+################################################################################
+.PHONY: all
+all: $(SHLIBS)
 
 tidy:
-	for d in $(DIRS) ; do if [   -e $$d/Makefile ] ; then (cd $$d;$(MAKE) $(MAKEFLAGS) tidy  )  fi ; done
-	for d in $(DIRS) ; do if [ ! -e $$d/Makefile ] ; then (cd $$d ; rm -f \#*\#  *~ )           fi ; done
-	rm -rf \#*\#  *~
+	rm -rf *.o *~ \#*\#
 
-localinstall:
-	cp src/*.so lib
+clean: tidy
+	for f in $(SHLIBS) ; do rm -f $$f ; done
+
+install:
+	false #nothing to install here.
