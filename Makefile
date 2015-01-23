@@ -14,7 +14,7 @@ SRC := ./src
 ################################################################################
 # Headers changes in which should force rebuilds
 ################################################################################
-HEADERS := mask_bits.h desimage.h
+HEADERS := despyfits/mask_bits.h despyfits/desimage.h
 
 ################################################################################
 # Explore our environment
@@ -46,9 +46,9 @@ override CFLAGS += $(addprefix -L ,$(LIBS))
 ################################################################################
 # The libraries we are to make
 ################################################################################
-SHLIBS = $(LIB)/libharmonic_mean.$(SHLIB_SUFFIX) \
-	 $(LIB)/libbpm.$(SHLIB_SUFFIX) \
+SHLIBS = $(LIB)/libbpm.$(SHLIB_SUFFIX) \
 	 $(LIB)/libfixcol.$(SHLIB_SUFFIX) \
+	 $(LIB)/libmasksatr.$(SHLIB_SUFFIX) \
 	 $(LIB)/libfoo.$(SHLIB_SUFFIX) \
 	 $(LIB)/libbar.$(SHLIB_SUFFIX)
 

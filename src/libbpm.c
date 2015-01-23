@@ -1,5 +1,5 @@
-#include "mask_bits.h"
-#include "desimage.h"
+#include "despyfits/mask_bits.h"
+#include "despyfits/desimage.h"
 
 /* based on imcorrect.c svn-30871 lines 1466-1475 */
 int obpm(desimage output, desimage bpm) {
