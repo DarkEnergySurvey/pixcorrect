@@ -13,8 +13,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__),'unittests'))
 
 def main():
     parser = ArgumentParser(description='Run tests.')
-    parser.add_argument('config', default="test.config", help="the configuration file")
-    parser.add_argument('-v', default=1, type=int, help="verbosity to be passed to TestRunner")
+    parser.add_argument('config', nargs='?', 
+                        default="test.config", help="the configuration file")
+    parser.add_argument('--verbose', '-v', action='count', 
+                        help="verbosity to be passed to TestRunner")
     args = parser.parse_args()
 
     config = ConfigParser()
@@ -45,7 +47,7 @@ def main():
         doc_full_path = os.path.join(os.path.dirname(__file__), tested_doc)
         suite.addTests(DocFileSuite(doc_full_path))
 
-    unittest.TextTestRunner(verbosity=args.v).run(suite)
+    unittest.TextTestRunner(verbosity=args.verbose).run(suite)
     return 0
 
 if __name__ == '__main__':
