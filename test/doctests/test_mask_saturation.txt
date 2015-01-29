@@ -18,8 +18,8 @@ Configure mask_saturatio::
   >>> config.set(config_section, 'out', path.join(tmp_data, 'masksat.fits'))
 
 Run mask_saturation::
-  >>> from pixcorrect.mask_saturation import mask_saturation_main
-  >>> mask_saturation_main(config)
+  >>> from pixcorrect.mask_saturation import mask_saturation
+  >>> mask_saturation.run(config)
   0
 
 Clean up::

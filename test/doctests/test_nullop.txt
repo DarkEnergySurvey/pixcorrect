@@ -18,8 +18,8 @@ Configure mask_saturatio::
   >>> config.set(config_section, 'out', path.join(tmp_data, 'nullop_out.fits'))
 
 Run nullop::
-  >>> from pixcorrect.nullop import nullop_main
-  >>> nullop_main(config)
+  >>> from pixcorrect.nullop import nullop
+  >>> nullop.run(config)
   0
 
 Clean up::

@@ -18,8 +18,8 @@ Generate a configuration to follow::
   >>> config.set('bpm', 'out', path.join(tmp_data, 'test_apply_bpm.fits'))
 
 Actually run apply_bpm::
-  >>> from pixcorrect.apply_bpm import apply_bpm_main
-  >>> apply_bpm_main(config)
+  >>> from pixcorrect.apply_bpm import apply_bpm
+  >>> apply_bpm.run(config)
   0
 
 Clean up::

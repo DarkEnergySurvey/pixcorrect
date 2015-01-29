@@ -18,8 +18,8 @@ Configure fixcol::
   >>> config.set('fixcol', 'out', path.join(tmp_data, 'test_fixcol.fits'))
 
 Run fixcol::
-  >>> from pixcorrect.fix_cols import fix_cols_main
-  >>> fix_cols_main(config)
+  >>> from pixcorrect.fix_cols import fix_cols
+  >>> fix_cols.run(config)
   0
 
 Clean up::

@@ -18,8 +18,8 @@ Generate a configuration to follow::
   >>> config.set('obpm', 'out', path.join(tmp_data, 'test_override_bpm.fits'))
 
 Actually run override_bpm::
-  >>> from pixcorrect.override_bpm import override_bpm_main
-  >>> override_bpm_main(config)
+  >>> from pixcorrect.override_bpm import override_bpm
+  >>> override_bpm.run(config)
   0
 
 Clean up::
