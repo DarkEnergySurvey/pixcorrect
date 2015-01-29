@@ -11,8 +11,11 @@ from ConfigParser import SafeConfigParser
 from contextlib import contextmanager
 from shutil import rmtree
 
+import numpy as np
+
 from pixcorrect.pixcorrect_im import PixCorrectIm
 from despyfits.DESImage import DESImage
+from despyfits import maskbits
 
 LOG_FILENAME = 'TestPixCorrectIm.log'
 
@@ -32,12 +35,12 @@ def prepare_logger():
     if old_log_exists:
         logger.handlers[0].doRollover()
 
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-    console_format = "%(message)s"
-    console_formatter = logging.Formatter(console_format)
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
+    # console_handler = logging.StreamHandler()
+    # console_handler.setLevel(logging.DEBUG)
+    # console_format = "%(message)s"
+    # console_formatter = logging.Formatter(console_format)
+    # console_handler.setFormatter(console_formatter)
+    # logger.addHandler(console_handler)
 
     return logger
 
@@ -83,9 +86,14 @@ class TestPixCorrectIm(TestCase):
 
     def add_bpm_config(self, config):
         add_ref_data_config(config, 'bpm', 'bpm.fits')
+        config.set('pixcorrect_im', 'mask_saturation', 'True')
         config.set('pixcorrect_im', 'fixcol', 'True')
 
-    def xx_test_bpm(self):
+    def add_override_bpm_config(self, config):
+        self.add_bpm_config(config)
+        add_ref_data_config(config, 'override_bpm', 'True')
+
+    def test_bpm(self):
         with temp_pixcorrect_test_dir() as temp_dir:
             config = self.new_config(temp_dir)
             self.add_bpm_config(config)
@@ -93,7 +101,14 @@ class TestPixCorrectIm(TestCase):
             logger.debug('Doing BPM correction')
             pix_corrector()
 
-    def test_nullop(self):
+            test_im = DESImage.load( config.get('pixcorrect_im', 'out') )
+            ref_im = DESImage.load( path.join(ref_dir, 'post_bpm.fits') )
+            in_im = DESImage.load( path.join(ref_dir, 'scix.fits') )
+            im_cmp = ref_im.compare( test_im )
+            logger.debug(str(im_cmp.header))
+            im_cmp.log(logger, ref_im)
+
+    def xx_test_nullop(self):
         with temp_pixcorrect_test_dir() as temp_dir:
             config = self.new_config(temp_dir)
             self.add_nullop_config(config)
@@ -104,13 +119,7 @@ class TestPixCorrectIm(TestCase):
             test_im = DESImage.load( config.get('pixcorrect_im', 'out') )
             ref_im = DESImage.load( path.join(ref_dir, 'scix.fits') )
             im_cmp = ref_im.compare( test_im )
-            self.assertTrue(im_cmp.data_match)
-            self.assertTrue(im_cmp.mask_match)
-            self.assertTrue(im_cmp.weight_match)
-            import pdb; pdb.set_trace()
-            pass
-
-            
+            self.assertTrue(im_cmp.match(ignore=['BUNIT','EXCLUDED','HISTORY']))
 
 if __name__ == '__main__':
     unittest.main()
