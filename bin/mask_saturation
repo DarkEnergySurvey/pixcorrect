@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.mask_saturation import mask_saturation
+
+if __name__ == '__main__':
+    mask_saturation.main()
