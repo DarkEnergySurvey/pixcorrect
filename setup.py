@@ -5,7 +5,7 @@ import glob
 import shlib 
 from shlib.build_shlib import SharedLibrary
 
-bin_files = glob.glob("bin/*.py") + glob.glob("bin/*.txt")
+bin_files = glob.glob('bin/*')
 
 libbpm = SharedLibrary(
     'bpm',
