@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.pixcorrect_im import PixCorrectIm
+
+if __name__ == '__main__':
+    PixCorrectIm.main()
