@@ -4,7 +4,7 @@
 import unittest
 import logging
 import logging.handlers
-from unittest import TestCase, skip
+from unittest import TestCase, skip, expectedFailure
 from tempfile import mkdtemp
 from os import path, environ
 from ConfigParser import SafeConfigParser
@@ -93,6 +93,7 @@ class TestPixCorrectIm(TestCase):
         self.add_bpm_config(config)
         add_ref_data_config(config, 'override_bpm', 'True')
 
+    @expectedFailure
     def test_bpm(self):
         with temp_pixcorrect_test_dir() as temp_dir:
             config = self.new_config(temp_dir)
@@ -107,8 +108,10 @@ class TestPixCorrectIm(TestCase):
             im_cmp = ref_im.compare( test_im )
             logger.debug(str(im_cmp.header))
             im_cmp.log(logger, ref_im)
+            self.assertTrue(im_cmp.match())
 
-    def xx_test_nullop(self):
+    @expectedFailure
+    def test_nullop(self):
         with temp_pixcorrect_test_dir() as temp_dir:
             config = self.new_config(temp_dir)
             self.add_nullop_config(config)
@@ -119,7 +122,7 @@ class TestPixCorrectIm(TestCase):
             test_im = DESImage.load( config.get('pixcorrect_im', 'out') )
             ref_im = DESImage.load( path.join(ref_dir, 'scix.fits') )
             im_cmp = ref_im.compare( test_im )
-            self.assertTrue(im_cmp.match(ignore=['BUNIT','EXCLUDED','HISTORY']))
+            self.assertTrue(im_cmp.match())
 
 if __name__ == '__main__':
     unittest.main()
