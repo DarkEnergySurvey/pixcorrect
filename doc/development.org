@@ -1,0 +1,155 @@
+# -*- org-html-link-up: "http://decam03.fnal.gov:8080/notes/neilsen/";  org-html-link-home: "http://home.fnal.gov/~neilsen" -*-
+#+TITLE:     pixcorrect development
+#+AUTHOR:    Eric H. Neilsen, Jr.
+#+EMAIL:     neilsen@fnal.gov
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:3 ^:nil _:nil toc:t \n:nil @:t ::t |:t ^:t *:t TeX:t LaTeX:t
+#+INFOJS_OPT: view:showall tdepth:1 toc:t ltoc:t mouse:underline path:http://home.fnal.gov/~neilsen/notebook/org-mode/org-info.js
+#+LaTeX_CLASS: articleap
+#+LaTeX_HEADER: \usepackage[section]{placeins}
+#+LaTeX_HEADER: \usepackage{alltt}
+#+LaTeX_HEADER: \usepackage{color}
+#+LaTeX_HEADER: \definecolor{intrlred}{RGB}{169,58,63}
+#+LaTeX_HEADER: \definecolor{aqua}{RGB}{65,155,133}
+#+LaTeX_HEADER: \definecolor{prgold}{RGB}{210,140,0}
+#+LaTeX_HEADER: \definecolor{nalblue}{RGB}{0,51,153}
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_HOME: http://home.fnal.gov/~neilsen
+#+LINK_UP: http://home.fnal.gov/~neilsen/notebook
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="../css/notebook.css" />
+#+STARTUP: showall
+
+* Initial state
+
+** =imsupport=
+
+The =imsupport= product contains C code for loading, saving, and
+otherwise working with DES images. Particularly significant contents
+of this product are:
+
+ - mask bit definitions :: are defined in C pre-processor directives,
+      duplicated in =include/imutils.h= and
+      =include/imsupport.h=. There are separates sets of bits for use
+      in the initial BPM and the mask HDUs of DES images.
+ - =desimage= struct :: =include/imreadsubs.h= contains the =desimage=
+      C struct, which includes elements for metadata corresponding to
+      some FITS keywords, and pointers to arrays containing science
+      data, weight, and mask pixel data.
+
+** =imcorrect=
+
+The =imcorrect= C code does the actual pixel-level correction on DES
+images. For each operation, there appears to be a central bit of code
+that actually does the calculation on each pixels. Sometimes these are
+combined in the same loop over pixels, sometimes a calculation is
+contained in its own loop.
+
+** =fitsio=
+
+=fitsio= is a python wrapper around the =CFITSIO= library, and
+can be used to manipulate headers, and load and save pixel data as
+=numpy= arrays.
+
+** =ctypes=
+
+=ctypes= is a base python method of calling C libraries. C manitulates
+memory at a lower level than is typical for python program, and
+=ctypes= includes tools for generating and interpreting arbitrary C
+structures, mapping them to python objects.
+
+Using =ctypes= with =numpy= can be slightly tricky. Internally,
+=numpy= can store data in a variety of ways (row-major or column major
+ordering of array elemets, big-endian or little-endian, and the
+assorted combinations thereof). When =numpy= is used intirely within
+python, the way in which the data is stored is invisible to the user:
+the =numpy= code keeps track and does whatever is appropriate.
+
+When one needs to pass a pointer to arrays of pixels to C code,
+however, one needs to be sure that =numpy= is storing the pixels in
+the order, type, and endian-ness expected by the C library. =numpy=
+includes tools for supporting this.
+
+* Progress
+
+** =despyfits=
+
+=despyfits= contains code for manipulating DES images from python
+libraries, roughly analogous to =imsupport=. 
+
+=despyfits= includes a header file, with lines cut-and-pasted from
+=imsupport='s =include/imsupport.h=, that define bits in pixel
+masks. There is also a trivial C library that imports these and
+assigns the values to C extern variables, and a python module that
+uses =ctypes= to provide access to these values from python.
+
+To make sure there is only one cannonical definition of mask bits,
+=imsupport='s =imutils.h= and =imsupport.h= now need to be modified to
+include the file from =despyfits= rather than their own
+definitions. Who owns =imsupport=?
+
+=despyfits= includes a =DESImage= class for holding data associated
+with a DES image, roughly analogous to the =desimage= C
+struct. Becuase I don't know if =fitsio= guarantees that the =numpy=
+array is in the correct memory layout, =DESImage= currenly forces each
+array to the correct layout after loading. (This takes some time, so
+if it is unnecessary, it should be dropped. When I was experimenting
+with pyfits, it *was* necessary: pyfits created big-endian numpy
+array (as the FITS standard stores them on disk), while C code on
+little-endian machines (the ones we use) requires little-endian data.)
+
+Because the code that does the calculations in =imcorrect= makes heavy
+use of =imsupport='s =desimage= struct, and we would like to
+cut-and-paste this code into C libraries to be called by python
+through =ctypes=, =DESImage= includes a method that returns a
+=ctypes.Structure= object that supplies a subset of the elements
+defined in =imsupport='s =desimage= struct, and a C header file that
+declares a C structure that corresponds to the structure generated by
+=DESImage=.
+
+** =pixcorrect=
+
+The development of the python utility that replicates =imcorrect= is
+in progress.
+
+It now includes C libries that should replicate operations performed
+by =imcorrect=, with C code copied directly from =imcorrect=. There
+are python modules that call each of these individually, and a
+separate module that calls each in sequence. 
+
+At present, the code has been tested to run without crashing, but the
+results have not yet been checked against the same calculations
+performed by =imcorrect=. 
+
+* Instructions for adding steps from =imcorrect= to =pixcorrect=
+
+ - Find the code in =imcorrect= that does the pixel level calculation
+ - Check that all elements of =imsupport='s =desimage= structure used
+   in this code are present in =despyfits-'s =desimage= (in
+   =include/desimage.h=). If there are any missing:
+   + add the missing elements to =include/desimage.h= in =despyfits=
+   + add the missing elements to the =DESImageCStruct= class in
+     =python/despyfits/DESImage.py=. Be sure to both add the new
+     element to the =_fields_= property and the code to set the value
+     in the class's =__init__= method.
+   + recompile =despyfits= using the Makefile.
+   + =svn= update your working copy of =pixcorrect= to pick up the new
+     header.
+ - Copy the code in =imcorrect.c= to a C file in =pixcorrect='s =src=
+   directory, calling it =lib${STEPNAME}.c=. Make sure the loop over
+   pixels is included in the library; see =src/libbpm.c= or
+   =src/libmasksatr.c= for examples.
+ - Run =make= in the root of =pixcorrect=, and make sure it
+   compiles. Debug.
+ - Create a python module for this step. The module should supply an
+   API for calling the step programatically, and also code for running
+   it stand-alone. Use =apply_bpm.py= or =mask_saturation.c= as a
+   template. Test that the new python module runs.
+ - Add the step to =pixcorrect_im.py=, the module that calls all steps
+   in sequence. Test that =pixcorrect_im= runs.
+ - Add a =doctest= or =unittest= to verify that your new step does
+   what you think it does. (An example of this has not been completed
+   yet.)
+
+
+
