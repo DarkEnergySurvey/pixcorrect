@@ -234,11 +234,9 @@ needed, the clearest way to handle it is probably by declaring a new
 python class. For example, the =ampsecan= field in the =desimage=
 structure is an array of four integers, so the the =DESImage= python
 module declares the class =FourInts= thus:
-
 #+BEGIN_SRC python
 FourInts = ctypes.c_int * 4
 #+END_SRC
-
 and the =ampsecan= element of the =_fields_= property of the
 =DESImageCStruct= class is declared to be of that type.
 
@@ -246,7 +244,7 @@ and the =ampsecan= element of the =_fields_= property of the
 
 The C libraries used in =despyfits= depend on the =desimage.h= header,
 and so must be recompiled to incorporate any changes. Because this is
-a python pack, use python's =setuptools= to do this:
+a python package, use python's =setuptools= to do this:
 
 #+BEGIN_SRC sh
 cd $DESPYFITS_DIR
@@ -305,15 +303,248 @@ python setup.py build
 
 ** Create a =python= module for the new step
 The module should supply an API for calling the step programatically,
-and also code for running it stand-alone. Use =apply_bpm.py= or
-=mask_saturation.c= as a template. Test that the new python module
-runs.
+and also code for running it stand-alone. =mask_saturation.py= is an example
+of an operation that uses only the data =desimage= structure itself
+for paramaters and returns, and =apply_bpm= is a slightly more complex
+example, where a second =desimage= is used.
+
+*** Example 1: =mask_saturation=
+
+Following the =mask_saturation= example, it begins by declaring a
+module constant that defines the section of a configuration file from
+which the stand-alone executable might read its input:
+
+#+BEGIN_SRC python
+config_section = 'mask_saturation'
+#+END_SRC
+
+(This same string will also be used as the switch to determine whether
+this step is performed in the driver that drives multiple steps.)
+
+Next comes the code that loads the C library:
+
+#+BEGIN_SRC python
+masksatr_lib = load_shlib('libmasksatr')
+mask_saturation_c = masksatr_lib.mask_saturation
+mask_saturation_c.restype = ctypes.c_int
+mask_saturation_c.argtypes = [DESImageCStruct, ctypes.POINTER(ctypes.c_int)]
+#+END_SRC
+
+The first line loads the library. The second maps the
+=mask_saturation= function in that library to the python callable
+object referenced by =mask_saturation_c= (in other words,
+=mask_saturation_c= acts like a python function).
+
+The assignments to =mask_saturation_c.restype= and and
+=mask_saturation_c.argtypes= set the return type and argument types
+for the C function, respectively.
+
+The value of =DESImageCStruct= corresponds to a =desimage= argument in
+the C function, and the =ctypes.POINTER(ctypes.c_int)= to a pointer to
+an =int=.
+
+Following this management of the C library, the =MaskSaturation= class
+is declared. It is a subclass of =PixCorrectImStep=, from which it
+gets most of its functionality; only code specific to this step is
+here.
+
+At the start of the class definition are the properties =description=
+and =step_name=, which determine the help string to be provided on the
+command line in response to an =--help= argument and the switch to be
+used to turn on and off execution of this function (mapped here to the
+module's =config_section= constant). 
+
+Then, a =__call__= method is defined. =__call__= is a special python
+method which is called when an instance if an object is called as if
+it were a function, an in this case it defines the main functionality
+of the step. 
+
+The definition begins with defining the =num_saturated= variable to a
+=ctypes.c_int()=, which gets python to allocate the appropraite memory
+so it can pass a pointer to it in the next line.
+
+The next line actually calls the function in the C library. The first
+argument triggers the creation of a =DESImageCStruct= object from the
+=DESImage= object, and the second the pointer to the variable in which
+the number of flagged pixels will be returned.
+
+After definition of the =MaskSaturation= class, this line:
+
+#+BEGIN_SRC python
+mask_saturation = MaskSaturation()
+#+END_SRC
+
+creates an instance of the class and assigns it to =mask_saturation=,
+meaning that =mask_saturation= can now be treated like a function (in
+which case =MaskSaturation.__call__= will be called).
+
+*** Example 2: =apply_bpm=
+
+The =apply_bpm= step is similar, but has the additional complication
+that a second image, the bad pixel mask, needs to be loaded and passed
+to the call.
+
+The first thing that needs to happend is that a new command line
+argument needs to be made to let the user supply the file name for the
+BPM. This is done by the =add_step_args= method. For additional
+information on adding arguments to a python argument parser, see the
+python =argparse= documentation.
+
+We also need to add the code to load the BPM image, which is done in
+the =step_run= method. Note that the second argument of the
+=config.get= call needs to match the second argument of the
+=parse.add_argument= call in =add_step_args=, which is also the option
+that would be used if the file name were to be loaded from a
+configuration file.
+
+Note that =MaskSaturation= class also has =step_run= and
+=add_step_args= method, but these are inhereted from the
+=PixCorrectImStep= parent class, and do not do anything special.
+
+** Create an executable file for the step
+
+Once the step's class has been defined as above, this is trivial. In
+the case of =apply_bpm=, for example, a python script,
+=${PIXCORRECT_DIR}/bin/apply_bpm=, that looks like
+this:
+
+#+BEGIN_SRC python
+#!/usr/bin/env python
+
+from pixcorrect.apply_bpm import apply_bpm
+
+if __name__ == '__main__':
+    apply_bpm.main()
+#+END_SRC
+
+does the trick.
+
+Note that we could accomplish the same thing by just running
+=apply_bpm.py= directly, and so we could have gotten away with just
+putting a symlink to =apply_bpm.py= in =${PIXCORRECT_DIR}/bin=, but I
+personally prefer to keep them as real, distinct files, for reasons
+too obscure to go in to here.
+
 ** Add the step to =pixcorrect_im.py=
-This is the module that calls all steps in sequence. Test that
-=pixcorrect_im= runs.
+
+The code that runs all steps in sequence can be found in 
+=${PIXCORRECT_DIR}/python/pixcorrect/pixcorrect_im.py=. 
+
+Start adding your new step by adding an import of the callable
+instance of your object defined above, for example in the case of
+=fix_cols= this is:
+
+#+BEGIN_SRC python
+from pixcorrect.fix_cols import fix_cols
+#+END_SRC
+
+Next, if your new step requires arguments not already supplied by
+other steps, add them to the =PixCorrectIm.add_step_args= method. In
+the case of =fix_cols=, the =bpm= argument was already present, but
+the =--fix_cols= switch to set whether to perform that step was
+not. So, these lines were needed to support =fix_cols=:
+
+#+BEGIN_SRC python
+parser.add_argument('--bpm', nargs=1, 
+                    default=None, 
+                    help='bad pixel mask filename')
+parser.add_argument('--fix_cols', action='store_true',
+                    help='fix bad columns')
+#+END_SRC
+
+Then, figure out where your new step should be called in the
+=PixCorrectIm.__call__= method, and add it. For example, in the case
+of =fixcol=, the new code added was:
+
+#+BEGIN_SRC python
+if do_step('fix_cols'):
+    fix_cols(self.sci, self.bpm)
+#+END_SRC
+
+Note that the argument to =do_step= is the same as the option name
+in the =add_argument= statement above. 
+
+Other methods of the =PixCorrectIm= class (which do not need to be
+modified for new steps) make sure the images passed to =fix_cols=,
+=self.sci= and =self.bpm=, get loaded as needed. When you reference a
+method of =PixCorrectIm= that is not already defined, the class looks
+for a command line argument (or parameter in the config file) with the
+same name, and if one is present, it interprets it as a file name for
+a =DESImage= and loads it. Once it is loaded, future references to the
+same member just return the same loaded object, avoiding the need to
+load the image multiple times from disk.
+
+The =clean_im= method releases the memory for images loaded in this
+way. For example, this line:
+
+#+BEGIN_SRC python
+self.clean_im('bpm')
+#+END_SRC
+
+tell python it can free them memory into which the BPM was loaded. If
+=self.bpm= is referenced after this, it will need to be reread from
+disk. (Note that python does not guarantee that it will free the
+memory as soon as it is allowed to.)
+
 ** Add a =doctest= or =unittest= 
-These should verify that your new step does what you think it
-does. (An example of this has not been completed yet.)
 
+*** Test infrastructure in =pixcorrect=
 
+Python has two built-in mechanisms for automated testing, =doctest=
+and =unittest=. Which is more useful depends on what tests you are
+performing. Personally, if the test code itself does not require a lot
+of debugging, I find doctests easier, but if the testing code itself
+is complicated and likely to have bugs, I find the unittest approach
+easier.
+
+The =pixcorrect= product has a driver for running tests of both types.
+
+Each doctest is in a text file in =${PIXCORRECT_DIR}/test/doctests=
+and each unittest in is a python file in
+=${PIXCORRECT_DIR}/test/unittests=. 
+
+The configuration file =${PIXCORRECT_DIR}/test/test.config= has
+options corresponding to each unittest in its =unittest= section, and
+each doctest in its =docs= section. Set the values of these options to
+true or false depending on whether you want to run those tests, and
+run the desired tests thus:
+
+#+BEGIN_SRC sh
+setup pixcorrectTestData
+cd $PIXCORRECT_DIR/test
+python test.py
+#+END_SRC
+
+Note that you can use a different configuration file if you wish, and
+run it thus:
+
+#+BEGIN_SRC sh
+setup pixcorrectTestData
+cd $PIXCORRECT_DIR/test
+python test.py my_favourite_tests.config
+#+END_SRC
+
+*** =doctests=
+
+At present, the doctests in =pixcorrect= mostly just test that the
+various modules run without crashing. 
+
+doctests are particularly easy to write in python. When a doctest test
+document is run, the test driver looks through the text document for
+anything that looks like example code, and tries to run it and check
+that it gets the same results as in the example.
+
+So, when I first start testing a piece of python code interactively,
+once I get an example that works, I just cut and paste the output on
+the terminal into a text document, put a little explanatory text
+around it, and make that the initial doctest.
+
+Note that doctest can be used to test examples embedded in python code
+itself, but I won't describe that here.
+
+*** =unittest=
+
+=unittest= more closely resembles the unit testing approach. So far, I
+have put code that tests whether the steps accurately reproduce the
+results from =imcorrect= in this framework.
 
