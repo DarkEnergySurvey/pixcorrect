@@ -3,7 +3,7 @@ Testing nullop.py
 
 Figure out where to get test input::
   >>> from os import path, environ
-  >>> data_home = path.join(environ['PIXCORRECT_DIR'],'test','data')
+  >>> data_home = environ['PIXCORRECTTESTDATA_DIR']
 
 Figure out where to put output::
   >>> from tempfile import mkdtemp

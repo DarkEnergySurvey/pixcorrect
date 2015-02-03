@@ -45,7 +45,7 @@ def prepare_logger():
     return logger
 
 logger = prepare_logger()
-ref_dir = path.join(environ['PIXCORRECT_DIR'],'test','data')
+ref_dir = environ['PIXCORRECTTESTDATA_DIR']
 
 # Create a temp dir context manager to guarantee 
 # the temp dir gets cleaned up, even if there are 
