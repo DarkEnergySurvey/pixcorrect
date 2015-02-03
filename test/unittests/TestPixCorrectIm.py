@@ -122,6 +122,9 @@ class TestPixCorrectIm(TestCase):
             test_im = DESImage.load( config.get('pixcorrect_im', 'out') )
             ref_im = DESImage.load( path.join(ref_dir, 'scix.fits') )
             im_cmp = ref_im.compare( test_im )
+            logger.info("Nullop results")
+            logger.debug(str(im_cmp.header))
+            im_cmp.log(logger, ref_im)
             self.assertTrue(im_cmp.match())
 
 if __name__ == '__main__':
