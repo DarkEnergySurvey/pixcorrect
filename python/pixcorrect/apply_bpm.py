@@ -6,7 +6,7 @@ import ctypes
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, load_shlib
 from despyfits.DESImage import DESImage, DESImageCStruct
 from pixcorrect.PixCorrectImDriver import PixCorrectImStep
 
@@ -14,7 +14,7 @@ from pixcorrect.PixCorrectImDriver import PixCorrectImStep
 config_section = 'bpm'
 
 # Lowest level access to the C library function
-bpm_lib = np.ctypeslib.load_library('libbpm.so', path.join(proddir, 'lib')) 
+bpm_lib = load_shlib('libbpm')
 bpm_c = bpm_lib.bpm
 bpm_c.restype = ctypes.c_int
 bpm_c.argtypes = [DESImageCStruct, DESImageCStruct]

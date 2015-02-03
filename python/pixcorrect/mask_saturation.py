@@ -7,7 +7,7 @@ import ctypes
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, load_shlib
 from despyfits.DESImage import DESImage, DESImageCStruct
 from pixcorrect.PixCorrectImDriver import PixCorrectImStep
 
@@ -21,8 +21,7 @@ config_section = 'mask_saturation'
 # classes
 
 # Lowest level access to the C library function
-masksatr_lib = np.ctypeslib.load_library('libmasksatr.so',
-                                         path.join(proddir, 'lib')) 
+masksatr_lib = load_shlib('libmasksatr')
 mask_saturation_c = masksatr_lib.mask_saturation
 mask_saturation_c.restype = ctypes.c_int
 mask_saturation_c.argtypes = [DESImageCStruct, ctypes.POINTER(ctypes.c_int)]

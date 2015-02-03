@@ -8,9 +8,12 @@ import logging
 from contextlib import closing
 from os import path
 import time
+import platform
+import ctypes
 
 import pyfits
 import numpy as np
+
 
 from pixcorrect import proddir
 
@@ -30,6 +33,21 @@ class LibraryException(Exception):
         self.value = value
 
 # interface functions
+
+def load_shlib(shlib_name):
+    """Load a shared library
+    """
+
+    lib_ext = {'Linux': 'so',
+               'Darwin': 'dylib'}
+    fname = shlib_name + '.' + lib_ext[platform.system()]
+    try:
+        shlib = ctypes.CDLL(fname)
+    except KeyError:
+        raise RuntimeError, ("Unknown platform: " + platform.system())
+        
+    return shlib
+    
 
 # A decorator that uses a FITS keyword to determine whether a step
 # has already been performed, and skips it if it has.

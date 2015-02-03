@@ -7,7 +7,7 @@ import ctypes
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, load_shlib
 from despyfits.DESImage import DESImage, DESImageCStruct
 from pixcorrect.PixCorrectImDriver import PixCorrectImStep
 
@@ -21,8 +21,7 @@ config_section = 'fixcol'
 # classes
 
 # Lowest level access to the C library function
-fixcol_lib = np.ctypeslib.load_library('libfixcol.so', 
-                                       path.join(proddir, 'lib')) 
+fixcol_lib = load_shlib('libfixcol')
 fix_cols_c = fixcol_lib.fixCol
 fix_cols_c.restype = ctypes.c_int
 fix_cols_c.argtypes = [DESImageCStruct, DESImageCStruct]
