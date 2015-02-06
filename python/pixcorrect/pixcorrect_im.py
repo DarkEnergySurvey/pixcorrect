@@ -22,25 +22,12 @@ from pixcorrect.apply_bpm import apply_bpm
 from pixcorrect.override_bpm import override_bpm
 from pixcorrect.fix_cols import fix_cols
 from pixcorrect.mask_saturation import mask_saturation
-from pixcorrect.PixCorrectDriver import PixCorrectDriver
+from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
-config_section = "pixcorrect_im"
-
-class PixCorrectIm(PixCorrectDriver):
+class PixCorrectIm(PixCorrectMultistep):
+    config_section = "pixcorrect_im"
     step_name = config_section
     description = 'Do image-by-image pixel level corrections'
-    _image_data = {}
-    
-    def __init__(self, config):
-        self.config = config
-
-    @classmethod
-    def run(cls, config):
-        config.set(config_section, 'sci', 
-                   config.get(config_section, 'in'))
-        pix_corrector = cls(config)
-        ret_value = pix_corrector()
-        return ret_value
 
     def image_data(self, image_name):
         """Return a DESImage object for a configured image
@@ -55,27 +42,13 @@ class PixCorrectIm(PixCorrectDriver):
             im = self._image_data[image_name]
         else:
             # If we don't already have the data, load it
-            fname = self.config.get('pixcorrect_im', image_name)
+            fname = self.config.get(self.config_section, image_name)
             im = DESImage.load(fname)
             logger.info('Reading %s image from %s' % (image_name, fname))
             self._image_data[image_name] = im
 
         return im
 
-    def __getattr__(self, image_name):
-        """Create a shortcut to images using object attributes
-        """
-        return self.image_data(image_name)
-
-    def clean_im(self, image_name):
-        """Let python garbage collect the memory used for an image
-
-        :Parameters:
-            -`image_name`: the type of image to clean
-        """
-        if image_name in self._image_data:
-            del self._image_data[image_name]
-        
 
     def __call__(self):
         """Do image-by-image pixel level corrections
@@ -84,37 +57,22 @@ class PixCorrectIm(PixCorrectDriver):
         # be assiciated with shoveling data between steps. Everything else should
         # take inside the code for its respective step.
 
-        # Are we configured to do the named step?
-        def do_step(step_name):
-            if not self.config.has_option('pixcorrect_im', step_name):
-                return False
-
-            try:
-                # If the parameter is a boolean, interpret is
-                # as an on/off switch
-                doit = self.config.getboolean('pixcorrect_im', step_name)
-                return doit
-            except:
-                # Otherwise, interpret it as a value associated with
-                # the step, and assume we want to perform the step
-                return True
-
-        if do_step('nullop'):
+        if self.do_step('nullop'):
             nullop(self.sci)
 
-        if do_step('bpm'):
-            if do_step('override_bpm'):
+        if self.do_step('bpm'):
+            if self.do_step('override_bpm'):
                 override_bpm(self.sci, self.bpm)
             else:
                 apply_bpm(self.sci, self.bpm)
 
-        if do_step('fixcol'):
+        if self.do_step('fixcol'):
             fix_cols(self.sci, self.bpm)
 
         # We should be done with the BPM; let python reclaim the memory
         self.clean_im('bpm')
 
-        if do_step('mask_saturation'):
+        if self.do_step('mask_saturation'):
             mask_saturation(self.sci)
 
         out_fname = self.config.get('pixcorrect_im', 'out')

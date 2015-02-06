@@ -42,38 +42,51 @@ class TestDrivers(TestCase):
     code itself, just whether the code can be called from a 
     shell command.
     """
+    fpsci_fname = '/home/s1/neilsen/usrdevel/pixcorrect-trunk/test/imcorrect_run/DECam_00394250.fits.fz'
+    fpout_base_fname = 'test_output_%%d.fits'
+
     sci_fname = path.join(ref_dir, 'scix.fits')
+    out_base_fname = 'test_output.fits'
     bpm_fname = path.join(ref_dir, 'bpm.fits')
 
-    def exec_runner(self, *args):
+    def exec_runner(self, in_fname, out_base_fname, *args):
         prod_path = path.join(environ['PIXCORRECT_DIR'],'bin')
         cmd = path.join(environ['PIXCORRECT_DIR'],'bin',args[0])
 
         with temp_pixcorrect_test_dir() as temp_dir:
-            out_fname = path.join(temp_dir, 'test_output.fits')
-            args += ('-i', self.sci_fname, '-o', out_fname)
+            out_fname = path.join(temp_dir, out_base_fname)
+            args += ('-i', in_fname, '-o', out_fname)
             logger.info('Running: ' + ' '.join(args))
             ret_code = spawnv(P_WAIT, cmd, args)
 
         self.assertEqual(ret_code, 0)
 
+    def im_exec_runner(self, *args):
+        self.exec_runner(self.sci_fname, self.out_base_fname, *args)
+
+    def fp_exec_runner(self, *args):
+        self.exec_runner(self.fpsci_fname, self.fpout_base_fname, *args)
+
     def test_nullop(self):
-        self.exec_runner('nullop')
+        self.im_exec_runner('nullop')
 
     def test_mask_saturation(self):
-        self.exec_runner('mask_saturation')
+        self.im_exec_runner('mask_saturation')
 
     def test_apply_bpm(self):
-        self.exec_runner('apply_bpm','-b',self.bpm_fname)
+        self.im_exec_runner('apply_bpm','-b',self.bpm_fname)
 
     def test_override_bpm(self):
-        self.exec_runner('override_bpm','-b',self.bpm_fname)
+        self.im_exec_runner('override_bpm','-b',self.bpm_fname)
 
     def test_fix_cols(self):
-        self.exec_runner('fix_cols','-b',self.bpm_fname)
+        self.im_exec_runner('fix_cols','-b',self.bpm_fname)
 
     def test_pixcorrect_im(self):
-        self.exec_runner('pixcorrect_im','--bpm',self.bpm_fname)
+        self.im_exec_runner('pixcorrect_im','--bpm',self.bpm_fname)
+
+    def test_pixcorrect_fp(self):
+        self.fp_exec_runner('pixcorrect_fp','--nullop_fp')
 
 if __name__ == '__main__':
     unittest.main()

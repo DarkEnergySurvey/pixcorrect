@@ -195,5 +195,52 @@ class PixCorrectFPStep(PixCorrectStep):
         
         return ret_code
 
+class PixCorrectMultistep(PixCorrectDriver):
+    _image_data = {}
+    
+    def __init__(self, config):
+        self.config = config
+
+    @classmethod
+    def run(cls, config):
+        config.set(cls.config_section, 'sci', 
+                   config.get(cls.config_section, 'in'))
+        pix_corrector = cls(config)
+        ret_value = pix_corrector()
+        return ret_value
+
+    def image_data(self, fname):
+        raise NotImplemetedError
+
+    def __getattr__(self, image_name):
+        """Create a shortcut to images using object attributes
+        """
+        return self.image_data(image_name)
+
+    def clean_im(self, image_name):
+        """Let python garbage collect the memory used for an image
+
+        :Parameters:
+            -`image_name`: the type of image to clean
+        """
+        if image_name in self._image_data:
+            del self._image_data[image_name]
+        
+
+    def do_step(self, step_name):
+        if not self.config.has_option(self.config_section, step_name):
+            return False
+
+        try:
+            # If the parameter is a boolean, interpret is
+            # as an on/off switch
+            doit = self.config.getboolean(self.config_section, step_name)
+            return doit
+        except:
+            # Otherwise, interpret it as a value associated with
+            # the step, and assume we want to perform the step
+            return True
+
+
 
 # internal functions & classes
