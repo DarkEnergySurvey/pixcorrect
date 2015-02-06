@@ -20,6 +20,7 @@ obpm_c.restype = ctypes.c_int
 obpm_c.argtypes = [DESImageCStruct, DESImageCStruct]
 
 class OverrideBPM(ApplyBPM):
+
     description = "Override a bad pixel mask"
     step_name = config_section
 

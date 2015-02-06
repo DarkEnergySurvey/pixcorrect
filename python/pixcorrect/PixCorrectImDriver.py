@@ -160,6 +160,18 @@ class PixCorrectImStep(PixCorrectImDriver):
         in_fname = config.get(cls.step_name, 'in')
         image = DESImage.load(in_fname)
 
+        try:
+            if image.mask is None:
+                image.init_mask()
+        except AttributeError:
+            image.init_mask()
+
+        try:
+            if image.weight is None:
+                image.init_weight()
+        except AttributeError:
+            image.init_weight()
+
         ret_code = cls.step_run(image, config)
 
         out_fname = config.get(cls.step_name, 'out')
