@@ -8,7 +8,7 @@ import numpy as np
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger, load_shlib
 from despyfits.DESImage import DESImage, DESImageCStruct
-from pixcorrect.PixCorrectImDriver import PixCorrectImStep
+from pixcorrect.PixCorrectDriver import PixCorrectImStep
 
 # Which section of the config file to read for this step
 config_section = 'bpm'

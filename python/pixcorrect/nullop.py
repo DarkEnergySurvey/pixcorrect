@@ -3,7 +3,7 @@
 """
 
 # imports
-from pixcorrect.PixCorrectImDriver import PixCorrectImStep
+from pixcorrect.PixCorrectDriver import PixCorrectImStep
 
 # constants
 

@@ -16,13 +16,14 @@ from pixcorrect import corr_util
 from pixcorrect.corr_util import logger
 from pixcorrect import proddir
 from despyfits.DESImage import DESImage, DESImageCStruct
+from despyfits.DESFocalPlaneImages import DESFocalPlaneImages
 
 # constants
 # exception classes
 # interface functions
 # classes
 
-class PixCorrectImDriver(object):
+class PixCorrectDriver(object):
     description = None
     step_name = None
     
@@ -128,8 +129,13 @@ class PixCorrectImDriver(object):
             # here
             raise
 
-class PixCorrectImStep(PixCorrectImDriver):
+class PixCorrectStep(PixCorrectDriver):
 
+    # In all subclasses, the __call__ method should take all unpacked
+    # parameters, while the step_run takes the sci image (or arroy of sci images)
+    # and the configuration object
+
+    # The call method should actually apply the corrections
     @classmethod
     def __call__(cls, image):
         """Execute the step
@@ -141,6 +147,9 @@ class PixCorrectImStep(PixCorrectImDriver):
         """
         raise NotImplemetedError
 
+
+    # The step_run method unpacks parameters from config, and 
+    # calls __call__ to do the corrections.
     @classmethod
     def step_run(cls, image, config):
         """Customized execution for this step
@@ -153,6 +162,9 @@ class PixCorrectImStep(PixCorrectImDriver):
         ret_code = cls.__call__(image)
         return ret_code
 
+
+class PixCorrectImStep(PixCorrectStep):
+
     @classmethod
     def run(cls, config):
         """Execute the step, loading and running the input and output
@@ -160,22 +172,26 @@ class PixCorrectImStep(PixCorrectImDriver):
         in_fname = config.get(cls.step_name, 'in')
         image = DESImage.load(in_fname)
 
-        try:
-            if image.mask is None:
-                image.init_mask()
-        except AttributeError:
-            image.init_mask()
-
-        try:
-            if image.weight is None:
-                image.init_weight()
-        except AttributeError:
-            image.init_weight()
-
         ret_code = cls.step_run(image, config)
 
         out_fname = config.get(cls.step_name, 'out')
         image.save(out_fname)
+        
+        return ret_code
+
+class PixCorrectFPStep(PixCorrectStep):
+
+    @classmethod
+    def run(cls, config):
+        """Execute the step, loading and running the input and output
+        """
+        in_fname = config.get(cls.step_name, 'in')
+        images = DESFocalPlaneImages.load(in_fname)
+
+        ret_code = cls.step_run(images, config)
+
+        out_fname_template = config.get(cls.step_name, 'out')
+        images.save(out_fname_template)
         
         return ret_code
 

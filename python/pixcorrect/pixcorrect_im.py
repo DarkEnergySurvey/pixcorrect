@@ -22,11 +22,11 @@ from pixcorrect.apply_bpm import apply_bpm
 from pixcorrect.override_bpm import override_bpm
 from pixcorrect.fix_cols import fix_cols
 from pixcorrect.mask_saturation import mask_saturation
-from pixcorrect.PixCorrectImDriver import PixCorrectImDriver
+from pixcorrect.PixCorrectDriver import PixCorrectDriver
 
 config_section = "pixcorrect_im"
 
-class PixCorrectIm(PixCorrectImDriver):
+class PixCorrectIm(PixCorrectDriver):
     step_name = config_section
     description = 'Do image-by-image pixel level corrections'
     _image_data = {}
