@@ -25,6 +25,12 @@ libmasksatr = SharedLibrary(
     include_dirs = ['include'],
     extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
 
+libfpnumber = SharedLibrary(
+    'fpnumber',
+    sources = ['src/libfpnumber.c'],
+    include_dirs = ['include'],
+    extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
+
 # The main call
 setup(name='pixcorrect',
       version ='0.1.1',
@@ -32,7 +38,7 @@ setup(name='pixcorrect',
       description = "Pixel-level image correction",
       author = "Eric Neilsen",
       author_email = "neilsen@fnal.gov",
-      shlibs = [libbpm, libfixcol, libmasksatr],
+      shlibs = [libbpm, libfixcol, libmasksatr, libfpnumber],
       packages = ['pixcorrect'],
       package_dir = {'': 'python'},
       scripts = bin_files,
