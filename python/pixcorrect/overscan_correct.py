@@ -7,7 +7,7 @@ from os import path
 import numpy as np
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger, load_shlib
-from despyfits.DESImage import DESImage, DESImageCStruct, scan_fits_section
+from despyfits.DESImage import DESImage, DESImageCStruct, scan_fits_section, data_dtype
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 
 # Which section of the config file to read for this step
@@ -62,6 +62,31 @@ class ApplyOverScan(PixCorrectImStep):
         print "DATASECA (ordered): ",datasecan
         print "DATASECB (ordered): ",datasecbn
         print "DATASEC  (ordered): ",datasecn
+
+        ampsecan = [x-1 for x in scan_fits_section(image, 'AMPSECA')]
+        ampsecbn = [x-1 for x in scan_fits_section(image, 'AMPSECB')]
+        print "AMPSECA: ",ampsecan
+        print "AMPSECB: ",ampsecbn
+#       order x-ranges
+        if (ampsecan[0]>ampsecan[1]):
+            xtemp=ampsecan[0]
+            ampsecan[0]=ampsecan[1]
+            ampsecan[1]=xtemp
+        if (ampsecbn[0]>ampsecbn[1]):
+            xtemp=ampsecbn[0]
+            ampsecbn[0]=ampsecbn[1]
+            ampsecbn[1]=xtemp
+#       order y-ranges
+        if (ampsecan[2]>ampsecan[3]):
+            ytemp=ampsecan[2]
+            ampsecan[2]=ampsecan[3]
+            ampsecan[3]=ytemp
+        if (ampsecbn[2]>ampsecbn[3]):
+            ytemp=ampsecbn[2]
+            ampsecbn[2]=ampsecbn[3]
+            ampsecbn[3]=ytemp
+        print "AMPSECA(ordered): ",ampsecan
+        print "AMPSECB(ordered): ",ampsecbn
 #
 #       Obtain/sample the overscan strip(s) to obtain a set of values.
 #
@@ -101,14 +126,18 @@ class ApplyOverScan(PixCorrectImStep):
 #
 #       Subtract Overscan from the Image data
 #
-        image.data[datasecan[2]:datasecan[3]+1,datasecan[0]:datasecan[1]+1]-=overscan_val_a[:,np.newaxis]   
-        image.data[datasecbn[2]:datasecbn[3]+1,datasecbn[0]:datasecbn[1]+1]-=overscan_val_b[:,np.newaxis]  
+        print datasecn[3]-datasecn[2]+1,datasecn[1]-datasecn[0]+1
+        newimage=np.empty([datasecn[3]-datasecn[2]+1,datasecn[1]-datasecn[0]+1],dtype=data_dtype)
+        newimage[:,:]=image.data[datasecn[2]:datasecn[3]+1,datasecn[0]:datasecn[1]+1]
+        newimage[ampsecan[2]:ampsecan[3]+1,ampsecan[0]:ampsecan[1]+1]-=overscan_val_a[:,np.newaxis]   
+        newimage[ampsecbn[2]:ampsecbn[3]+1,ampsecbn[0]:ampsecbn[1]+1]-=overscan_val_b[:,np.newaxis]  
+        image.data=newimage
+        print image.data.dtype
 
 #
 #       Trim data to form output
 #
-        print image.data.shape
-        image.data=np.ascontiguousarray(image.data[datasecn[2]:datasecn[3]+1,datasecn[0]:datasecn[1]+1])
+#        print image.data.shape
 #        print output.dtype
 #        import fitsio
 #        fitsio.write('outimage',output,clobber=True)
