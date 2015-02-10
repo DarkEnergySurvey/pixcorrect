@@ -107,7 +107,6 @@ class ApplyOverScan(PixCorrectImStep):
 #
 #       Trim data to form output
 #
-        import pdb; pdb.set_trace()
         print image.data.shape
         image.data=np.ascontiguousarray(image.data[datasecn[2]:datasecn[3]+1,datasecn[0]:datasecn[1]+1])
 #        print output.dtype
