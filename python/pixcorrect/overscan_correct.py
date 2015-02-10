@@ -107,14 +107,15 @@ class ApplyOverScan(PixCorrectImStep):
 #
 #       Trim data to form output
 #
+        import pdb; pdb.set_trace()
         print image.data.shape
-        output=np.ascontiguousarray(image.data[datasecn[2]:datasecn[3]+1,datasecn[0]:datasecn[1]+1])
-        print output.dtype
-        import fitsio
-        fitsio.write('outimage',output,clobber=True)
+        image.data=np.ascontiguousarray(image.data[datasecn[2]:datasecn[3]+1,datasecn[0]:datasecn[1]+1])
+#        print output.dtype
+#        import fitsio
+#        fitsio.write('outimage',output,clobber=True)
 #        print image.data.shape
-        image.header['NAXIS1']=datasecn[1]-datasecn[0]+1
-        image.header['NAXIS2']=datasecn[3]-datasecn[2]+1
+#        image.header['NAXIS1']=datasecn[1]-datasecn[0]+1
+#        image.header['NAXIS2']=datasecn[3]-datasecn[2]+1
 
         logger.info(' %d %d ' % image.data.shape)
         logger.debug('Finished applying Overscan')

@@ -117,8 +117,6 @@ class PixCorrectDriver(object):
 
         logger.addHandler(logging.StreamHandler())
         
-        ret_val = cls.run(config)
-        
         try:
             ret_val = cls.run(config)
             exit_status = 0 if ret_val is None else ret_val
