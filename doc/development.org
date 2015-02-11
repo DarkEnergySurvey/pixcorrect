@@ -205,6 +205,98 @@ PixCorrectIm -- pixcorrect_im
 #+RESULTS:
 [[file:class_diagram.png]]
 
+* Installing and running =pixcorrect=
+** Running =pixcorrect= on =des21.fnal.gov=
+
+*** Log into the DES cluster at Fermilab
+
+Log into =des21.fnal.gov=, and prepare the shell you are using to use
+=eups= and the DESDM product stack. 
+
+It is possible that your =.bashrc= or =.profile= prepares your login
+environt that uses mainline =UPS= rather than the =eups= fork, in
+which case you need to start a new =bash= what doesn't have any of
+this setup. This will do that:
+
+#+BEGIN_SRC sh
+env - PATH=/usr/bin:/bin TERM=$TERM "$(command -v bash)" --noprofile --norc
+#+END_SRC
+
+Then, prepare the =eups= environment needed:
+
+#+BEGIN_SRC sh
+source /cvmfs/descfs.fnal.gov/eeups/SL6/eups/desdm_eups_setup.sh
+setup Y2Nstack 1.0.5+0
+#+END_SRC
+
+*** Make a devel directory and go there
+
+The =/usrdevel/dp0=  directory on the DES cluster at fermilab is
+intended for for software development. It isn't large, and so isn't
+suitable for holding images or other data, but it is good for checking
+out subversion productes.
+
+Make yourself a directory there, if you don't already have one:
+
+#+BEGIN_SRC sh
+mkdir /usrdevel/dp0/$(whoami)
+#+END_SRC
+
+*** Check needed products out of subversion
+
+There are two products you need: the =br_pixcorrect_0.1.1= branch of
+=despyfits=, and the =trunk= of =pixcorrect=. This will get you
+checked out versions:
+
+#+BEGIN_SRC sh
+DESDMSVN=https://dessvn.cosmology.illinois.edu/svn/desdm/devel
+cd /usrdevel/dp0/$(whoami)
+svn co ${DESDMSVN}/despyfits/branches/br_pixcorrect_0.1.1 despyfits-pc
+svn co ${DESDMSVN}/pixcorrect/trunk pixcorrect-trunk
+#+END_SRC
+
+*** Build and =eups setup= =despyfits=
+
+These products need to be built using the python =setup.py= script,
+which takes care of compling the =C= components and moves executable
+=python= scipts into standard places.
+
+This can be done like this, assuming the directories are as made by
+the above instructions:
+
+#+BEGIN_SRC sh
+cd /usrdevel/dp0/$(whoami)/despyfits-pc
+python setup.py build
+#+END_SRC
+
+Once built, you can use =eups setup= to set environent variables
+(=PATH=, =PYTHONPATH=, etc.) as needed:
+
+#+BEGIN_SRC sh
+setup despyfits \
+  -r /usrdevel/dp0/$(whoami)/despyfits-pc
+  -m /usrdevel/dp0/$(whoami)/despyfits-pc/ups/despyfits-devel.table
+#+END_SRC
+
+*** Build and =eups setup= =pixcorrect=
+
+Similar operation need to be performed for =pixcorrect=.
+
+First, build it:
+
+#+BEGIN_SRC sh
+cd /usrdevel/dp0/$(whoami)/pixcorrect-trunk
+python setup.py build
+#+END_SRC
+
+The use =eups setup= to set the environment:
+
+#+BEGIN_SRC sh
+setup pixcorrect \
+  -r /usrdevel/dp0/$(whoami)/pixcorrect-trunk
+  -m /usrdevel/dp0/$(whoami)/pixcorrect-trunk/ups/pixcorrect-devel.table
+#+END_SRC
+
 * Instructions for adding steps from =imcorrect= to =pixcorrect=
 
 ** Find the code in =imcorrect= that does the pixel level calculation
