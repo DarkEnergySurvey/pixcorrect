@@ -274,7 +274,7 @@ Once built, you can use =eups setup= to set environent variables
 
 #+BEGIN_SRC sh
 setup despyfits \
-  -r /usrdevel/dp0/$(whoami)/despyfits-pc
+  -r /usrdevel/dp0/$(whoami)/despyfits-pc \
   -m /usrdevel/dp0/$(whoami)/despyfits-pc/ups/despyfits-devel.table
 #+END_SRC
 
@@ -293,7 +293,7 @@ The use =eups setup= to set the environment:
 
 #+BEGIN_SRC sh
 setup pixcorrect \
-  -r /usrdevel/dp0/$(whoami)/pixcorrect-trunk
+  -r /usrdevel/dp0/$(whoami)/pixcorrect-trunk \
   -m /usrdevel/dp0/$(whoami)/pixcorrect-trunk/ups/pixcorrect-devel.table
 #+END_SRC
 

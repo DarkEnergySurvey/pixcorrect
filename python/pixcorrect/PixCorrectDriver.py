@@ -15,7 +15,7 @@ import numpy as np
 from pixcorrect import corr_util
 from pixcorrect.corr_util import logger
 from pixcorrect import proddir
-from despyfits.DESImage import DESImage, DESImageCStruct
+from despyfits.DESImage import DESImage, DESBPMImage, DESImageCStruct
 from despyfits.DESFocalPlaneImages import DESFocalPlaneImages
 
 # constants
@@ -195,7 +195,7 @@ class PixCorrectFPStep(PixCorrectStep):
 
 class PixCorrectMultistep(PixCorrectDriver):
     _image_data = {}
-    
+
     def __init__(self, config):
         self.config = config
 

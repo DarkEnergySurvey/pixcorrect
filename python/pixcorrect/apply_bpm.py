@@ -7,7 +7,7 @@ from os import path
 import numpy as np
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger, load_shlib
-from despyfits.DESImage import DESImage, DESImageCStruct
+from despyfits.DESImage import DESImage, DESBPMImage, DESImageCStruct
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 
 # Which section of the config file to read for this step
@@ -50,7 +50,7 @@ class ApplyBPM(PixCorrectImStep):
         """
         bpm_fname = config.get(cls.step_name, 'bpm')
         logger.info('reading BPM from %s' % bpm_fname)
-        bpm_im = DESImage.load(bpm_fname)
+        bpm_im = DESBPMImage.load(bpm_fname)
     
         ret_code = cls.__call__(image, bpm_im)
         return ret_code

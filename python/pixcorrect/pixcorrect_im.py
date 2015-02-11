@@ -10,7 +10,7 @@ import sys
 import numpy as np
 import pyfits
 
-from despyfits.DESImage import DESImage
+from despyfits.DESImage import DESImage, DESBPMImage
 
 from pixcorrect import corr_util
 from pixcorrect import imtypes
@@ -28,7 +28,8 @@ class PixCorrectIm(PixCorrectMultistep):
     config_section = "pixcorrect_im"
     step_name = config_section
     description = 'Do image-by-image pixel level corrections'
-
+    _image_types = {'bpm': DESBPMImage}
+    
     def image_data(self, image_name):
         """Return a DESImage object for a configured image
 
@@ -42,8 +43,15 @@ class PixCorrectIm(PixCorrectMultistep):
             im = self._image_data[image_name]
         else:
             # If we don't already have the data, load it
+
+            # Get the class of the image we are loading
+            try:
+                image_class = self._image_types[image_name]
+            except KeyError:
+                image_class = DESImage
+
             fname = self.config.get(self.config_section, image_name)
-            im = DESImage.load(fname)
+            im = image_class.load(fname)
             logger.info('Reading %s image from %s' % (image_name, fname))
             self._image_data[image_name] = im
 
