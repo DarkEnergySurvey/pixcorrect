@@ -24,9 +24,7 @@ from despyfits.DESFocalPlaneImages import DESFocalPlaneImages
 # classes
 
 class PixCorrectDriver(object):
-    description = None
-    step_name = None
-    
+
     @classmethod
     def run(cls, config):
         """Customized execution for this step
@@ -194,10 +192,10 @@ class PixCorrectFPStep(PixCorrectStep):
         return ret_code
 
 class PixCorrectMultistep(PixCorrectDriver):
-    _image_data = {}
 
     def __init__(self, config):
         self.config = config
+        self._image_data = {}
 
     @classmethod
     def run(cls, config):
