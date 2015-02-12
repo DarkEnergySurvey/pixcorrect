@@ -276,6 +276,7 @@ Once built, you can use =eups setup= to set environent variables
 setup despyfits \
   -r /usrdevel/dp0/$(whoami)/despyfits-pc \
   -m /usrdevel/dp0/$(whoami)/despyfits-pc/ups/despyfits-devel.table
+setup fitsio 0.9.6+0
 #+END_SRC
 
 *** Build and =eups setup= =pixcorrect=
@@ -295,6 +296,46 @@ The use =eups setup= to set the environment:
 setup pixcorrect \
   -r /usrdevel/dp0/$(whoami)/pixcorrect-trunk \
   -m /usrdevel/dp0/$(whoami)/pixcorrect-trunk/ups/pixcorrect-devel.table
+#+END_SRC
+
+*** Running tests
+
+Prepare the product with the test data:
+
+#+BEGIN_SRC sh
+setup pixcorrectTestData
+#+END_SRC
+
+Actually run the tests:
+
+#+BEGIN_SRC sh
+cd $PIXCORRECT_DIR/test
+python test.py
+#+END_SRC
+
+*** Running =overscan_correct=
+
+#+BEGIN_SRC sh
+setup pixcorrectTestData
+overscan_correct -i $PIXCORRECTTESTDATA_DIR/DECam_00394250.fits.fz \
+    -o my_output.fits -n 10 -v 
+#+END_SRC
+
+*** Running =apply_bpm=
+
+#+BEGIN_SRC sh
+setup pixcorrectTestData
+apply_bpm -i $PIXCORRECTTESTDATA_DIR/scix.fits \
+    --bpm $PIXCORRECTTESTDATA_DIR/bpm.fits \
+    -o test_post_bpm.fits
+#+END_SRC
+
+*** Running =mask_saturation=
+
+#+BEGIN_SRC sh
+setup pixcorrectTestData
+mask_saturation -i $PIXCORRECTTESTDATA_DIR/scix.fits \
+    -o test_mask_saturation.fits
 #+END_SRC
 
 * Instructions for adding steps from =imcorrect= to =pixcorrect=
