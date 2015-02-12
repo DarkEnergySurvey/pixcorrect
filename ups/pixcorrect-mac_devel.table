@@ -1,0 +1,18 @@
+envPrepend(PATH, ${PRODUCT_DIR}/build/scripts-2.7)
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/test/unittests)
+envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/build/temp.macosx-10.9-intel-2.7/shlib)
+
+# For development use these -- after doing "python setup.py build"
+envAppend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/build/temp.macosx-10.9-intel-2.7/shlib)
+if (FLAVOR == DarwinX86 || FLAVOR == Darwin) {
+   envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/build/temp.macosx-10.9-intel-2.7/shlib)
+}
+
+# For EUPS build scripts
+#envAppend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+#if (FLAVOR == DarwinX86 || FLAVOR == Darwin) {
+#   envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+#}
+
+
