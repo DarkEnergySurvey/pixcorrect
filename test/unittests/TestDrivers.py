@@ -42,7 +42,7 @@ class TestDrivers(TestCase):
     code itself, just whether the code can be called from a 
     shell command.
     """
-    fpsci_fname = '/home/s1/neilsen/usrdevel/pixcorrect-trunk/test/imcorrect_run/DECam_00394250.fits.fz'
+    fpsci_fname = path.join(ref_dir, 'DECam_00394250.fits.fz')
     fpout_base_fname = 'test_output_%%d.fits'
 
     sci_fname = path.join(ref_dir, 'scix.fits')
