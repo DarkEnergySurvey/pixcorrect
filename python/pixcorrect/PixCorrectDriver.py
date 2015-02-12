@@ -7,7 +7,7 @@ import ctypes
 import sys
 import logging
 from os import path
-from ConfigParser import SafeConfigParser 
+from ConfigParser import SafeConfigParser, NoOptionError
 from argparse import ArgumentParser
 
 import numpy as np
@@ -43,7 +43,7 @@ class PixCorrectDriver(object):
 
 
     @classmethod
-    def parser(cls):
+    def common_parser(cls):
         """Generate a parser for a specific step
         """
         default_config = path.join(proddir, 'etc', cls.step_name+'.config')
@@ -68,6 +68,13 @@ class PixCorrectDriver(object):
                                  default=None,
                                  help='output image file name')
 
+        return parser
+
+    @classmethod
+    def parser(cls):
+        """Generate a parser for a specific step
+        """
+        parser = cls.common_parser()
         cls.add_step_args(parser)
 
         return parser
@@ -162,12 +169,31 @@ class PixCorrectStep(PixCorrectDriver):
 class PixCorrectImStep(PixCorrectStep):
 
     @classmethod
+    def parser(cls):
+        """Generate a parser for a specific step
+        """
+        parser = cls.common_parser()
+
+        parser.add_argument('-n', '--ccdnum', nargs='?', 
+                            type=int,
+                            help='input image CCD number')
+
+        cls.add_step_args(parser)
+
+        return parser
+
+    @classmethod
     def run(cls, config):
         """Execute the step, loading and running the input and output
         """
         in_fname = config.get(cls.step_name, 'in')
-        image = DESImage.load(in_fname)
+        try:
+            ccdnum = config.getint(cls.step_name, 'ccdnum')
+            image = DESImage.load(in_fname, ccdnum=ccdnum)
+        except NoOptionError:
+            image = DESImage.load(in_fname)
 
+            
         ret_code = cls.step_run(image, config)
 
         out_fname = config.get(cls.step_name, 'out')
