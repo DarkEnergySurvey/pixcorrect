@@ -7,6 +7,12 @@ from shlib.build_shlib import SharedLibrary
 
 bin_files = glob.glob('bin/*')
 
+libbiascorrect = SharedLibrary(
+    'biascorrect',
+    sources = ['src/libbiascorrect.c'],
+    include_dirs = ['include'],
+    extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
+
 libbpm = SharedLibrary(
     'bpm',
     sources = ['src/libbpm.c'],
@@ -38,7 +44,7 @@ setup(name='pixcorrect',
       description = "Pixel-level image correction",
       author = "Eric Neilsen",
       author_email = "neilsen@fnal.gov",
-      shlibs = [libbpm, libfixcol, libmasksatr, libfpnumber],
+      shlibs = [libbiascorrect, libbpm, libfixcol, libmasksatr, libfpnumber],
       packages = ['pixcorrect'],
       package_dir = {'': 'python'},
       scripts = bin_files,
