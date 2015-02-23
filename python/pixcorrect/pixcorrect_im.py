@@ -18,6 +18,7 @@ from pixcorrect.dbc import precondition, postcondition
 from pixcorrect.corr_util import logger
 
 from pixcorrect.nullop import nullop
+from pixcorrect.bias_correct import bias_correct
 from pixcorrect.apply_bpm import apply_bpm
 from pixcorrect.override_bpm import override_bpm
 from pixcorrect.fix_cols import fix_cols
@@ -68,6 +69,9 @@ class PixCorrectIm(PixCorrectMultistep):
         if self.do_step('nullop'):
             nullop(self.sci)
 
+        if self.do_step('bias'):
+            bias_correct(self.sci, self.bias)
+
         if self.do_step('bpm'):
             if self.do_step('override_bpm'):
                 override_bpm(self.sci, self.bpm)
@@ -92,6 +96,8 @@ class PixCorrectIm(PixCorrectMultistep):
     def add_step_args(cls, parser):
         """Add arguments specific to pixcorrect driver
         """
+        parser.add_argument('--bias', nargs=1, default=None,
+                                      help='Bias correction image')
         parser.add_argument('--bpm', nargs=1, 
                                       default=None, 
                                       help='bad pixel mask filename')
