@@ -72,6 +72,7 @@ class PixCorrectIm(PixCorrectMultistep):
 
         if self.do_step('bias'):
             bias_correct(self.sci, self.bias)
+        self.clean_im('bias')
 
         if self.do_step('bpm'):
             if self.do_step('override_bpm'):
@@ -88,8 +89,12 @@ class PixCorrectIm(PixCorrectMultistep):
         if self.do_step('mask_saturation'):
             mask_saturation(self.sci)
 
+        if self.do_step('gain'):
+            gain_correct(self.sci)
+
         if self.do_step('flat'):
             flat_correct(self.sci, self.flat)
+        self.clean_im('flat')
 
         out_fname = self.config.get('pixcorrect_im', 'out')
         self.sci.save(out_fname)
