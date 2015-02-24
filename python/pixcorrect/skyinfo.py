@@ -41,7 +41,7 @@ def parse_ranges(ccdlist):
     for r1 in ccdlist.split(','):
         r2 = r1.split('-')
         if len(r2)==1:
-            set.add(int(r2[0]))
+            s.add(int(r2[0]))
         elif len(r2)==2:
             for j in range(int(r2[0]),int(r2[1])+1):
                 s.add(j)
