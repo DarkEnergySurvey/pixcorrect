@@ -61,10 +61,10 @@ class PixCorrectDriver(object):
                                  help="the name of the logfile")
         parser.add_argument('-v', '--verbose', action="count", 
                                  help="be verbose")
-        parser.add_argument('-i', '--in', nargs=1, 
+        parser.add_argument('-i', '--in', 
                                  default=None,
                                  help='input image file name')
-        parser.add_argument('-o', '--out', nargs=1, 
+        parser.add_argument('-o', '--out', 
                                  default=None,
                                  help='output image file name')
 
