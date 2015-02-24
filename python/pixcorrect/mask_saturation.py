@@ -6,8 +6,10 @@
 import ctypes
 from os import path
 import numpy as np
+from pixcorrect.dbc import postcondition
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger, load_shlib
+from pixcorrect.corr_util import do_once, no_lib_error
 from despyfits.DESImage import DESImage, DESImageCStruct
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 
@@ -31,6 +33,8 @@ class MaskSaturation(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
+    @do_once(1,'DESSAT')
+    @postcondition(no_lib_error)
     def __call__(cls, image):
         """Mark saturated pixels in the mask of an image
         

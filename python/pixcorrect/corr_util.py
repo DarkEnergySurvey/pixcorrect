@@ -64,7 +64,8 @@ def do_once(arg_idx, fits_keyword):
                 result = f(*args, **kwargs)
                 hdu.header[fits_keyword]=time.asctime(time.localtime())
             else:
-                logger.warning("Skipping " + f.__name__ +  " (already done)")
+                result = None
+                logger.warning("Skipping " + f.__name__ +  " (" + fits_keyword + " already set)")
             return result
         return f_wrapper
     return make_do_once_wrapper
@@ -103,7 +104,7 @@ def no_lib_error(func_args=None, func_kwargs=None, func_result=None):
     indicates an error.
     """
     if func_result != 0:
-        raise LibraryException() 
+        raise LibraryException(func_result) 
 
 # classes
 # internal functions & classes
