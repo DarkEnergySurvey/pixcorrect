@@ -23,6 +23,7 @@ from pixcorrect.apply_bpm import apply_bpm
 from pixcorrect.override_bpm import override_bpm
 from pixcorrect.fix_cols import fix_cols
 from pixcorrect.mask_saturation import mask_saturation
+from pixcorrect.flat_correct import flat_correct
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
 class PixCorrectIm(PixCorrectMultistep):
@@ -87,6 +88,9 @@ class PixCorrectIm(PixCorrectMultistep):
         if self.do_step('mask_saturation'):
             mask_saturation(self.sci)
 
+        if self.do_step('flat'):
+            flat_correct(self.sci, self.flat)
+
         out_fname = self.config.get('pixcorrect_im', 'out')
         self.sci.save(out_fname)
 
@@ -97,15 +101,15 @@ class PixCorrectIm(PixCorrectMultistep):
         """Add arguments specific to pixcorrect driver
         """
         parser.add_argument('--bias', nargs=1, default=None,
-                                      help='Bias correction image')
-        parser.add_argument('--bpm', nargs=1, 
-                                      default=None, 
-                                      help='bad pixel mask filename')
+                            help='Bias correction image')
+        parser.add_argument('--bpm', nargs=1, default=None, 
+                            help='bad pixel mask filename')
         parser.add_argument('--fix_cols', action='store_true',
-                                      help='fix bad columns')
+                            help='fix bad columns')
         parser.add_argument('--mask_saturation', action='store_true',
-                                      help='add saturated pixels to the mask')
-
+                            help='add saturated pixels to the mask')
+        parser.add_argument('--flat', nargs=1, default=None,
+                            help='Flat field correction image')
 
 if __name__ == '__main__':
     PixCorrectIm.main()
