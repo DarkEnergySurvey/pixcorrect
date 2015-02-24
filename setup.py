@@ -25,6 +25,12 @@ libfixcol = SharedLibrary(
     include_dirs = ['include'],
     extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
 
+libflatcorrect = SharedLibrary(
+    'flatcorrect',
+    sources = ['src/libflatcorrect.c'],
+    include_dirs = ['include'],
+    extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
+
 libmasksatr = SharedLibrary(
     'masksatr',
     sources = ['src/libmasksatr.c'],
@@ -44,7 +50,7 @@ setup(name='pixcorrect',
       description = "Pixel-level image correction",
       author = "Eric Neilsen",
       author_email = "neilsen@fnal.gov",
-      shlibs = [libbiascorrect, libbpm, libfixcol, libmasksatr, libfpnumber],
+      shlibs = [libbiascorrect, libbpm, libfixcol, libflatcorrect, libmasksatr, libfpnumber],
       packages = ['pixcorrect'],
       package_dir = {'': 'python'},
       scripts = bin_files,
