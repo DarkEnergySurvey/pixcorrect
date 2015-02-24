@@ -94,7 +94,8 @@ class SkyCombine(PixCorrectImStep):
 
         in_filenames = []
         for i in ccdnumlist:
-            in_filenames.append(miniskyfiles.format(i))
+#            in_filenames.append(miniskyfiles.format(i))
+            in_filenames.append(miniskyfiles % i)
         
         out_filename = config.get(cls.step_name, 'outfilename')
         logger.info('Sky combine output to %s' % out_filename)

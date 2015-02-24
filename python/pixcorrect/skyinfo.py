@@ -18,7 +18,8 @@ DEFAULT_BITMASK = \
 DEFAULT_IGNORE = 'N30,S30,S7'  # Chips to leave out of all sky calculations
 DEFAULT_MASK_VALUE = -1.  # Value assigned to unspecified pixels in compressed sky image
 DEFAULT_CCDNUMS = '1-62'  # CCDNUMs to use
-DEFAULT_MINISKY_FILES = 'minisky{:>02d}.fits'  # Template for mini-sky file names to assemble.
+#DEFAULT_MINISKY_FILES = 'minisky{:>02d}.fits'  # Template for mini-sky file names to assemble.
+DEFAULT_MINISKY_FILES = 'minisky%02d.fits'  # Template for mini-sky file names to assemble.
 DEFAULT_CLIP_SIGMA = 3.  # Rejection threshold for robust fitting of sky to PCs.
 DEFAULT_SKY_WEIGHT = True # Whether to build weight image from fitted sky image
 
