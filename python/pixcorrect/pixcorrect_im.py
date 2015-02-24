@@ -23,6 +23,7 @@ from pixcorrect.apply_bpm import apply_bpm
 from pixcorrect.override_bpm import override_bpm
 from pixcorrect.fix_cols import fix_cols
 from pixcorrect.mask_saturation import mask_saturation
+from pixcorrect.gain_correct import gain_correct
 from pixcorrect.flat_correct import flat_correct
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
@@ -111,6 +112,8 @@ class PixCorrectIm(PixCorrectMultistep):
                             help='bad pixel mask filename')
         parser.add_argument('--fix_cols', action='store_true',
                             help='fix bad columns')
+        parser.add_argument('--gain', action='store_true',
+                            help='convert ADU to e- using gain values in hdr')
         parser.add_argument('--mask_saturation', action='store_true',
                             help='add saturated pixels to the mask')
         parser.add_argument('--flat', nargs=1, default=None,
