@@ -78,8 +78,7 @@ class SkySubtract(PixCorrectImStep):
 
             # Transform the sky image into a variance image
             for amp in decaminfo.amps:
-                sec = scan_fits_section(image,'DATASEC'+amp)
-                sec = (slice(sec[0]-1,sec[1]),slice(sec[2]-1,sec[3]))
+                sec = section2slice(image['DATASEC'+amp])
                 sky[sec] *= image['DOMEMED'+amp]/image['GAIN'+amp]
                 sky[sec] += (image['RDNOISE'+amp]*image['DOMEMED'+amp])**2 / dome[sec]
             
@@ -103,9 +102,9 @@ class SkySubtract(PixCorrectImStep):
         """
 
         if config.has_option(cls.step_name,'bitmask'):
-            clip_sigma = config.getint(cls.step_name, 'bitmask')
+            bitmask = config.getint(cls.step_name, 'bitmask')
         else:
-            clip_sigma = skyinfo.DEFAULT_BITMASK
+            bitmask = skyinfo.DEFAULT_BITMASK
 
         fit_filename = config.get(cls.step_name, 'fitfilename')
         pc_filename = config.get(cls.step_name, 'pcfilename')
@@ -133,10 +132,10 @@ class SkySubtract(PixCorrectImStep):
                             help='Filename for minisky FITS image with PC coefficients')
         parser.add_argument('--pcfilename',type=str,
                             help='Filename for full-res sky principal components')
-        parser.add_argument('--skyweight', type=boolean, default=skyinfo.DEFAULT_SKY_WEIGHT,
+        parser.add_argument('--skyweight', action='store_true',
                             help='Construct weight image from fitted sky')
         parser.add_argument('--domefilename',type=str,
-                            help='Filename for dome flat (for skyweight=True)')
+                            help='Filename for dome flat (for --skyweight)')
         parser.add_argument('--bitmask',type=int,default=skyinfo.DEFAULT_BITMASK,
                             help='which bits in mask image imply weight=0')
         return

@@ -8,7 +8,7 @@ import fitsio
 from despyfits.DESImage import data_dtype
 from despyfits import maskbits
 from pixcorrect import decaminfo
-from pixcorrect import clippedMean
+from pixcorrect.clippedMean import clippedMean
 
 DEFAULT_BLOCKSIZE = 128  # Decimation factor for sky images
 DEFAULT_BITMASK = \
@@ -103,31 +103,32 @@ class MiniDecam(object):
             raise SkyError('MiniImage blocksize ' + str(blocksize) +
                             ' does not evenly divide images')
 
-        # Get the bounding box for CCDs in use
-        self.xmin = 0
-        self.ymin = 0
+        # Get the smallest x,y coords in unbinned uber-system
         x0 = None
-        x1 = None
         y0 = None
-        y1 = None
+        for detpos in decaminfo.ccdnums.keys():
+            if detpos in self.invalid:
+                continue
+            xy = decaminfo.ccdCorners[detpos]
+            if x0 is None:
+                x0 = xy[0]
+                y0 = xy[1]
+            x0 = min(x0,xy[0])
+            y0 = min(y0,xy[1])
+        self.xmin = x0
+        self.ymin = y0
+        
+        xmax = 0
+        ymax = 0
         for detpos in decaminfo.ccdnums.keys():
             if detpos in self.invalid:
                 continue
             y,x = self._corner_of(detpos)
-            if x0 is None:
-                x0 = x
-                x1 = x + self._chip[1]
-                y0 = y
-                y1 = y + self._chip[0]
-            x0 = min(x0,x)
-            x1 = max(x1, x+self._chip[1])
-            y0 = min(y0, y)
-            y1 = max(y1, y+self._chip[0])
-        self.xmin = x0
-        self.ymin = y0
+            xmax = max(xmax, x+self._chip[1])
+            ymax = max(ymax, y+self._chip[0])
 
         # Create the data and mask images
-        self.data = np.ones( (y1-y0,x1-x0), dtype=data_dtype) * self.mask_value
+        self.data = np.ones( (ymax,xmax), dtype=data_dtype) * self.mask_value
         self.mask = np.zeros(self.data.shape, dtype=bool)
 
         # Mark all useful regions in mask:
@@ -146,8 +147,8 @@ class MiniDecam(object):
         if detpos in self.invalid or detpos not in decaminfo.ccdnums.keys():
             raise SkyError('Invalid detpos in MiniDecam: ' + detpos)
             
-        x = (decaminfo.ccdCorners[detpos][0]-1-self.xmin)/self.blocksize
-        y = (decaminfo.ccdCorners[detpos][1]-1-self.ymin)/self.blocksize
+        x = (decaminfo.ccdCorners[detpos][0]-self.xmin)/self.blocksize
+        y = (decaminfo.ccdCorners[detpos][1]-self.ymin)/self.blocksize
         return y,x
 
     @property
@@ -233,15 +234,15 @@ class MiniDecam(object):
         """
         Save the mini-image to primary extension of a FITS file.
         """
-        header['BLOCKSIZ'] = self.blocksize
-        header['MASKVAL'] = self.mask_value
+        self.header['BLOCKSIZ'] = self.blocksize
+        self.header['MASKVAL'] = self.mask_value
         baddet = ''
         for detpos in self.invalid:
             if len(baddet)>0:
                 baddet = baddet + ','
             baddet = baddet + detpos
-        header['BADDET'] = baddet
-        fitsio.write(filename, self.data, header=header, clobber=True)
+        self.header['BADDET'] = baddet
+        fitsio.write(filename, self.data, header=self.header, clobber=True)
         return
 
     @classmethod
@@ -329,7 +330,7 @@ class MiniskyPC(object):
         mini.fill_from(v)
         mini.coeffs = a
         mini.rms = np.sqrt(var)
-        mini.frac = 1.-float(n)/len(data)
+        mini.frac = 1.-float(n)/len(y)
         return
 
 class SkyPC(object):

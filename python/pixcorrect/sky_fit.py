@@ -65,7 +65,7 @@ class SkyFit(PixCorrectImStep):
 
         logger.info('Sky fitting output to %s' % out_filename)
     
-        ret_code = cls.__call__(in_filenames, out_filename, pc_filename, clip_sigma)
+        ret_code = cls.__call__(in_filename, out_filename, pc_filename, clip_sigma)
         return ret_code
 
     @classmethod
