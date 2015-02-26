@@ -79,6 +79,9 @@ class LinearityCorrect(PixCorrectImStep):
         interpB = interpolate.interp1d(nonlinear, linearB, kind='linear', copy=True)
         logger.info('Applying Linearity Correction')
 
+#   if ((value < 0.0)||(value >= 65536.0)){      retval=value;
+#/*    printf(" Outside lut range: value=%f  retval=%f
+
 #
 #       Slice over the datasecs for each amplifier.
 #       Apply the correction
@@ -86,9 +89,16 @@ class LinearityCorrect(PixCorrectImStep):
         seca = section2slice( image['DATASECA'])
         secb = section2slice( image['DATASECB'])
 
-        image.data[seca]=interpA(image.data[seca])
-        image.data[secb]=interpB(image.data[secb])
 #
+#       RAG: original version... (removed in favor of a slice that excludes data outside the look up table range
+#        image.data[seca]=interpA(image.data[seca])
+#        image.data[secb]=interpB(image.data[secb])
+#
+        InRange=np.where(np.logical_and((image.data[seca]>=0.),(image.data[seca]<=65536.)))
+        image.data[seca][InRange]=interpA(image.data[seca][InRange])
+        InRange=np.where(np.logical_and((image.data[secb]>=0.),(image.data[secb]<=65536.)))
+        image.data[secb][InRange]=interpB(image.data[secb][InRange])
+
         ret_code=0
         return ret_code
 
