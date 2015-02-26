@@ -10,8 +10,9 @@ int bias_c(desimage output, desimage bias) {
 /*  Assumes a weight plane exists and has good values   */
 /*  Also assumes that the "wgt" plane of a bias has a value given as  */
 /*  an uncertainty in the bias image (rather than an inverse variance */
-    if (bias.varim[i]>0.0){
-       output.varim[i]+=1.0/(double)bias.varim[i];
+/*  EHN: update to use modified struct */
+    if (bias.variance[i]>0.0){
+      output.weight[i] = 1.0 / ( ((double)bias.variance[i]) + 1.0/output.weight[i] );
     }
   }
   return(0);

@@ -35,6 +35,7 @@ class BiasCorrect(PixCorrectImStep):
         """
  
         logger.info('Applying Bias')
+        bias_im.get_variance()
         ret_code = bias_c(image.cstruct, bias_im.cstruct)
         logger.debug('Finished applying Bias')
         return ret_code

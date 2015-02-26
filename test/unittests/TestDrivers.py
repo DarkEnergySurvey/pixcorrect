@@ -48,6 +48,8 @@ class TestDrivers(TestCase):
     sci_fname = path.join(ref_dir, 'scix.fits')
     out_base_fname = 'test_output.fits'
     bpm_fname = path.join(ref_dir, 'bpm.fits')
+    bias_fname = path.join(ref_dir, 'biascor.fits')
+    flat_fname = 'dflatcor.fits'
 
     def exec_runner(self, in_fname, out_base_fname, *args):
         prod_path = path.join(environ['PIXCORRECT_DIR'],'bin')
@@ -67,24 +69,39 @@ class TestDrivers(TestCase):
     def fp_exec_runner(self, *args):
         self.exec_runner(self.fpsci_fname, self.fpout_base_fname, *args)
 
+#    @skip('')
     def test_nullop(self):
         self.im_exec_runner('nullop')
 
+#    @skip('')    
+    def test_bias_correct(self):
+        self.im_exec_runner('bias_correct','--bias', self.bias_fname)
+
+#    @skip('')    
     def test_mask_saturation(self):
         self.im_exec_runner('mask_saturation')
 
+#    @skip('')    
     def test_apply_bpm(self):
-        self.im_exec_runner('apply_bpm','-b',self.bpm_fname)
+        self.im_exec_runner('apply_bpm','-b', self.bpm_fname)
 
+#    @skip('')    
     def test_override_bpm(self):
-        self.im_exec_runner('override_bpm','-b',self.bpm_fname)
+        self.im_exec_runner('override_bpm','-b', self.bpm_fname)
 
+#    @skip('')    
     def test_fix_cols(self):
-        self.im_exec_runner('fix_cols','-b',self.bpm_fname)
+        self.im_exec_runner('fix_cols','-b', self.bpm_fname)
 
+#    @skip('')    
+    def test_flat_correct(self):
+        self.im_exec_runner('flat_correct','--flat', self.flat_fname)
+
+#    @skip('')    
     def test_pixcorrect_im(self):
         self.im_exec_runner('pixcorrect_im','--bpm',self.bpm_fname)
 
+#    @skip('')    
     def test_pixcorrect_fp(self):
         self.fp_exec_runner('pixcorrect_fp','--nullop_fp')
 

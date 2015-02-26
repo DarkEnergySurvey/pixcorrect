@@ -20,7 +20,6 @@ Configure mask_saturation::
 Run mask_saturation::
   >>> from pixcorrect.mask_saturation import mask_saturation
   >>> mask_saturation.run(config)
-  0
 
 Clean up::
   >>> from shutil import rmtree

@@ -84,6 +84,12 @@ class TestPixCorrectIm(TestCase):
     def add_nullop_config(self, config):
         config.set('pixcorrect_im', 'nullop', 'True')
 
+    def add_bias_config(self, config):
+        add_ref_data_config(config, 'bias', 'biascor.fits')
+
+    def add_flat_config(self, config):
+        config.set('pixcorrect_im', 'flat', 'dflatcor.fits')
+
     def add_bpm_config(self, config):
         add_ref_data_config(config, 'bpm', 'bpm.fits')
         config.set('pixcorrect_im', 'mask_saturation', 'True')
@@ -92,6 +98,31 @@ class TestPixCorrectIm(TestCase):
     def add_override_bpm_config(self, config):
         self.add_bpm_config(config)
         add_ref_data_config(config, 'override_bpm', 'True')
+
+    @expectedFailure
+    def test_bias(self):
+        with temp_pixcorrect_test_dir() as temp_dir:
+            config = self.new_config(temp_dir)
+            self.add_bias_config(config)
+            pix_corrector = PixCorrectIm(config)
+            logger.info('Doing bias correction')
+            pix_corrector()
+
+            test_im = DESImage.load( config.get('pixcorrect_im', 'out') )
+            ref_im = DESImage.load( path.join(ref_dir, 'post_bias.fits') )
+            in_im = DESImage.load( path.join(ref_dir, 'scix.fits') )
+            im_cmp = ref_im.compare( test_im )
+            logger.debug(str(im_cmp.header))
+            im_cmp.log(logger, ref_im)
+            self.assertTrue(im_cmp.match())
+
+    def test_flat(self):
+        with temp_pixcorrect_test_dir() as temp_dir:
+            config = self.new_config(temp_dir)
+            self.add_flat_config(config)
+            pix_corrector = PixCorrectIm(config)
+            logger.info('Doing flat correction')
+            pix_corrector()
 
     @expectedFailure
     def test_bpm(self):
