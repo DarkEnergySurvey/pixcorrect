@@ -23,6 +23,7 @@ from pixcorrect.apply_bpm import apply_bpm
 from pixcorrect.override_bpm import override_bpm
 from pixcorrect.fix_cols import fix_cols
 from pixcorrect.mask_saturation import mask_saturation
+from pixcorrect.linearity_correct import linearity_correct
 from pixcorrect.gain_correct import gain_correct
 from pixcorrect.flat_correct import flat_correct
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
@@ -90,6 +91,10 @@ class PixCorrectIm(PixCorrectMultistep):
         if self.do_step('mask_saturation'):
             mask_saturation(self.sci)
 
+	if self.do_step('lincor'):
+	    lincor_fname=self.config.get('pixcorrect_im','lincor')
+	    linearity_correct(self.sci,lincor_fname)
+
         if self.do_step('gain'):
             gain_correct(self.sci)
 
@@ -112,6 +117,8 @@ class PixCorrectIm(PixCorrectMultistep):
                             help='bad pixel mask filename')
         parser.add_argument('--fix_cols', action='store_true',
                             help='fix bad columns')
+ 	parser.add_argument('--lincor', nargs=1, default=None, 
+                            help='Linearity Correction Table')
         parser.add_argument('--gain', action='store_true',
                             help='convert ADU to e- using gain values in hdr')
         parser.add_argument('--mask_saturation', action='store_true',
