@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.null_weights import null_weights
+
+if __name__ == '__main__':
+    null_weights.main()

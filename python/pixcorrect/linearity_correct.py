@@ -8,19 +8,13 @@ import numpy as np
 import fitsio
 from scipy import interpolate
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger, load_shlib
-from despyfits.DESImage import DESImage, DESImageCStruct, section2slice, data_dtype
+from pixcorrect.corr_util import logger
+from despyfits.DESImage import DESImage, section2slice
 from despyfits.DESFITSInventory import DESFITSInventory
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 
 # Which section of the config file to read for this step
 config_section = 'lincor'
-
-# Lowest level access to the C library function
-#bpm_lib = load_shlib('libbpm')
-#bpm_c = bpm_lib.bpm
-#bpm_c.restype = ctypes.c_int
-#overscan_c.argtypes = [DESImageCStruct, DESImageCStruct]
 
 class LinearityCorrect(PixCorrectImStep):
     description = "Apply a linearity correction"
@@ -79,9 +73,6 @@ class LinearityCorrect(PixCorrectImStep):
         interpB = interpolate.interp1d(nonlinear, linearB, kind='linear', copy=True)
         logger.info('Applying Linearity Correction')
 
-#   if ((value < 0.0)||(value >= 65536.0)){      retval=value;
-#/*    printf(" Outside lut range: value=%f  retval=%f
-
 #
 #       Slice over the datasecs for each amplifier.
 #       Apply the correction
@@ -89,15 +80,14 @@ class LinearityCorrect(PixCorrectImStep):
         seca = section2slice( image['DATASECA'])
         secb = section2slice( image['DATASECB'])
 
-#
-#       RAG: original version... (removed in favor of a slice that excludes data outside the look up table range
-#        image.data[seca]=interpA(image.data[seca])
-#        image.data[secb]=interpB(image.data[secb])
-#
-        InRange=np.where(np.logical_and((image.data[seca]>=0.),(image.data[seca]<=65536.)))
-        image.data[seca][InRange]=interpA(image.data[seca][InRange])
-        InRange=np.where(np.logical_and((image.data[secb]>=0.),(image.data[secb]<=65536.)))
-        image.data[secb][InRange]=interpB(image.data[secb][InRange])
+        # Only fix pixels that are in the range of the nonlinearity table
+        in_range=np.logical_and(image.data[seca]>=np.min(nonlinear),
+                                image.data[seca]<=np.max(nonlinear))
+        image.data[seca][in_range]=interpA(image.data[seca][in_range])
+
+        in_range=np.logical_and(image.data[secb]>=np.min(nonlinear),
+                                image.data[secb]<=np.max(nonlinear))
+        image.data[secb][in_range]=interpB(image.data[secb][in_range])
 
         ret_code=0
         return ret_code

@@ -86,7 +86,7 @@ class SkyCompress(PixCorrectImStep):
         if config.has_option(cls.step_name,'bitmask'):
             bitmask = config.getint(cls.step_name, 'bitmask')
         else:
-            bitmask = skyinfo.DEFAULT_BITMASK
+            bitmask = skyinfo.DEFAULT_SKYMASK
         skyfilename = config.get(cls.step_name, 'skyfilename')
         logger.info('Sky compression will be done for %s' % image)
     
@@ -101,7 +101,7 @@ class SkyCompress(PixCorrectImStep):
                             help='Filename for compressed sky image')
         parser.add_argument('--blocksize', type=int, default=skyinfo.DEFAULT_BLOCKSIZE,
                             help='Size of squares in which median is taken for sky')
-        parser.add_argument('--bitmask', type=int, default=skyinfo.DEFAULT_BITMASK,
+        parser.add_argument('--bitmask', type=int, default=skyinfo.DEFAULT_SKYMASK,
                             help='Mask image bits for pixels to ignore in sky estimate')
         return
 

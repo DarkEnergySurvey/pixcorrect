@@ -2,22 +2,16 @@
 """Apply a bias correction to a raw DES image 
 """
 
-import ctypes
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger, load_shlib
-from despyfits.DESImage import DESImage, DESImageCStruct, scan_fits_section, data_dtype
+from pixcorrect.corr_util import logger
+from despyfits.DESImage import DESImage
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 
 # Which section of the config file to read for this step
 config_section = 'bias'
 
-# Lowest level access to the C library function
-biascorrect_lib = load_shlib('libbiascorrect')
-bias_c = biascorrect_lib.bias_c
-bias_c.restype = ctypes.c_int
-bias_c.argtypes = [DESImageCStruct, DESImageCStruct]
 
 class BiasCorrect(PixCorrectImStep):
     description = "Apply a bias correction to an image"
@@ -35,9 +29,17 @@ class BiasCorrect(PixCorrectImStep):
         """
  
         logger.info('Applying Bias')
-        bias_im.get_variance()
-        ret_code = bias_c(image.cstruct, bias_im.cstruct)
+        image.data -= bias_im.data
+        # If we have two weight images, add variance of the bias to the image's
+        if (image.weight is not None or image.variance is not None):
+            if bias_im.weight is not None:
+                var = image.get_variance()
+                var += 1./bias_im.weight
+            elif bias_im.variance is not None:
+                var = image.get_variance()
+                var += bias_im.variance
         logger.debug('Finished applying Bias')
+        ret_code = 0
         return ret_code
 
 

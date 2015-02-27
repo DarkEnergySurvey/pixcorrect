@@ -26,7 +26,7 @@ class SkySubtract(PixCorrectImStep):
     
     @classmethod
     def __call__(cls, image, fit_filename, pc_filename,
-                weight, domeflat, bitmask):
+                weight, domeflat):
         """
         Subtract sky from image using previous principal-components fit. Optionally
         build weight image from fitted sky or all counts, in which case the dome flat
@@ -40,14 +40,10 @@ class SkySubtract(PixCorrectImStep):
             - `weight`: 'none' to skip weights, 'sky' to calculate weight at sky level,
                          'all' to use all counts
             - `domeflat`: DESImage for the dome flat, needed if weight=True.
-            - `bitmask`: which bits in the mask image signal that weight=0.
         """
  
         if weight=='sky' and fit_filename is None:
             raise SkyError('Cannot make sky-only weight map without doing sky subtraction')
-        
-        if domeflat is None:
-            raise SkyError('sky_fit needs dome flat when weight=True')
         
         if fit_filename is not None:
             logger.info('Subtracting sky')
@@ -70,6 +66,9 @@ class SkySubtract(PixCorrectImStep):
             raise SkyError('Invalid weight value: ' + weight)
 
         if do_weight:
+            if domeflat is None:
+                raise SkyError('sky_subtract needs dome flat when making weights')
+        
             if sky_weight:
                 logging.info('Constructing weight image from sky image')
                 data = sky
@@ -77,30 +76,30 @@ class SkySubtract(PixCorrectImStep):
                 logging.info('Constructing weight image from all counts')
                 data = image.data
 
-            # ?? change to: if image.weight is not None or image.variance is not None:
-            if image.weight is not None:
+            if image.weight is not None or image.variance is not None:
+                image.weight = None
+                image.variance = None
                 logging.warning('Overwriting existing weight image')
                 
             """
             We assume in constructing the weight (=inverse variance) image that
-            the input image here has been divided by domeflat already, and that
-            its RDNOISE[AB] and GAIN[AB] are correct for a pixel that has been divided
-            by the DOMEMED[AB] of the dome flat image.
+            the input image here has been divided by the dome flat already, and that
+            its GAIN[AB] keywords are correct for a pixel that has been divided
+            by the FLATMED[AB] of the flat image.  So the number of *electrons* that
+            were read in a pixel whose current value=sky is
+            e = sky * (dome/FLATMED) * GAIN
 
-            Also the RDNOISE and GAIN reflect whatever re-scaling has been done - so
-            if the image was *divided* by SCALE, we changed
-            RDNOISE -> RDNOISE / SCALE
-            GAIN -> GAIN * SCALE
-            
-            The variance has two parts: read noise and sky Poisson.
-            The read noise variance, before scaling by dome, was
-            Var = RN^2 = (RDNOISE*DOMEMED)^2
-            ...and the shot noise from sky was
-            Var = (original sky) / (original gain)
-                = (sky * dome) / (GAIN / DOMEMED)
-            This means the total variance in the image, after dividing by dome, is
 
-            Var = (RDNOISE * DOMEMED / dome)^2 + (DOMEMED/GAIN)*sky/dome
+            The variance has three parts: read noise, and sky Poisson noise, and
+            multiplicative errors from noise in the flat field.
+            The read noise variance, in electrons, is
+            Var = RDNOISE^2
+            ...and the shot noise from sky was, in electrons,
+            Var = sky * (dome/FLATMED) * GAIN
+
+            This means the total variance in the image, in its present form, is
+
+            Var = (RDNOISE * FLATMED / dome / GAIN)^2 + (FLATMED/GAIN)*sky/dome
 
             We can also add the uncertainty propagated from shot noise in the dome flat,
             if the dome image has a weight or variance.  In which case we would add
@@ -117,19 +116,16 @@ class SkySubtract(PixCorrectImStep):
             var = np.array(data, dtype = DESImage.weight_dtype)
             for amp in decaminfo.amps:
                 sec = section2slice(image['DATASEC'+amp])
-                var[sec] *= image['FLATMED'+amp]/image['GAIN'+amp]
-                var[sec] += (image['RDNOISE'+amp]*image['FLATMED'+amp])**2 / dome.data[sec]
-            var /= dome.data
+                invgain = (image['FLATMED'+amp]/image['GAIN'+amp]) / dome.data[sec]
+                var[sec] += image['RDNOISE'+amp]**2 * invgain
+                var[sec] *= invgain
             # Add noise from the dome flat shot noise, if present
-            # ??? change when variance is available
             if dome.weight is not None:
                 var += data * data * / (dome.weight*dome.data * dome.data)
+            elif dome.variance is not None:
+                var += data * data * dome.variance / (dome.data * dome.data)
                 
-            # ?? Change when variance is available:
-            # Weight is to be inverse variance:
-            image.weight = 1./var
-            # Apply a mask to the weight image
-            image.weight[ image.mask | bitmask] = 0.
+            image.variance = var
 
             logger.debug('Finished weight construction')
 
@@ -144,11 +140,6 @@ class SkySubtract(PixCorrectImStep):
             - `config`: the configuration from which to get other parameters
 
         """
-
-        if config.has_option(cls.step_name,'bitmask'):
-            bitmask = config.getint(cls.step_name, 'bitmask')
-        else:
-            bitmask = skyinfo.DEFAULT_BITMASK
 
         if config.has_option(cls.step_name,'fitfilename'):
             fit_filename = config.get(cls.step_name, 'fitfilename')
@@ -171,7 +162,7 @@ class SkySubtract(PixCorrectImStep):
         logger.info('Sky fitting output to %s' % image)
     
         ret_code = cls.__call__(image, fit_filename, pc_filename,
-                                sky_weight, domeflat, bitmask)
+                                weight, domeflat)
         return ret_code
 
     @classmethod
@@ -184,8 +175,6 @@ class SkySubtract(PixCorrectImStep):
                             help='Filename for full-res sky principal components')
         parser.add_argument('--domefilename',type=str,
                             help='Filename for dome flat (for weight calculation)')
-        parser.add_argument('--bitmask',type=int,default=skyinfo.DEFAULT_BITMASK,
-                            help='which bits in mask image imply weight=0')
         parser.add_argument('--weight', choices=('sky','all','none'),
                             default=skyinfo.DEFAULT_WEIGHT,
                             help='Construct weight from sky photons, ' \

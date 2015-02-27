@@ -9,6 +9,7 @@ from pixcorrect import proddir
 from pixcorrect.corr_util import logger, load_shlib
 from despyfits.DESImage import DESImage, DESImageCStruct, section2slice, data_dtype
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
+from pixcorrect import decaminfo
 
 # Which section of the config file to read for this step
 config_section = 'gain'
@@ -30,34 +31,26 @@ class GainCorrect(PixCorrectImStep):
  
         logger.info('Gain Correcting Image')
 
-        seca = section2slice( image['DATASECA'])
-        secb = section2slice( image['DATASECB'])
+        saturate = 0.
+        for amp in decaminfo.amps:
+            sec = section2slice( image['DATASEC'+amp])
+            gain = image['GAIN'+amp]
+            image.data[sec]*=gain
 
-        gaina = image['GAINA']
-        gainb = image['GAINB']
-        
-        image.data[seca]*=gaina
-        image.data[secb]*=gainb
+            # Adjust the weight or variance image if present:
+            if image.weight is not None:
+                image.weight[sec] *= 1./(gain*gain)
+            if image.variance is not None:
+                image.variance[sec] *= (gain*gain)
 
-        if image.weight is not None:
-            image.weight[seca] *= 1./(gaina*gaina)
-            image.weight[secb] *= 1./(gainb*gainb)
-        if hasattr(image,'variance') and image.variance is not None:
-            # The hasattr() check is because DESImage does not yet have variance
-            image.variance[seca] *= (gaina*gaina)
-            image.variance[secb] *= (gainb*gainb)
+            # Adjust keywords 
+            image['GAIN'+amp] = image['GAIN'+amp] / gain
+            image['SATURAT'+amp] = image['SATURAT'+amp] * gain
+            saturate = max(saturate, image['SATURAT'+amp])
 
-        # Adjust keywords 
-        image['GAINA'] = image['GAINA'] / gaina
-        image['RDNOISEA'] = image['RDNOISEA'] * (gaina*gaina)
-        image['SATURATA'] = image['SATURATA'] * gaina
-        image['GAINB'] = image['GAINB'] / gainb
-        image['RDNOISEB'] = image['RDNOISEB'] * (gainb*gainb)
-        image['SATURATB'] = image['SATURATB'] * gainb
         # The SATURATE keyword is assigned to maximum of the two amps.
-        # Is this really what we want??? I would think minimum.
-        image['SATURATE'] = max(image['SATURATA'],image['SATURATB'])
-        
+        image['SATURATE'] = saturate
+
         logger.debug('Finished applying Gain Correction')
         ret_code=0
         return ret_code

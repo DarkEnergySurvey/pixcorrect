@@ -11,11 +11,12 @@ from pixcorrect import decaminfo
 from pixcorrect.clippedMean import clippedMean
 
 DEFAULT_BLOCKSIZE = 128  # Decimation factor for sky images
-DEFAULT_BITMASK = \
+DEFAULT_SKYMASK = \
     maskbits.BADPIX_BPM | \
     maskbits.BADPIX_SATURATE | \
-    maskbits.BADPIX_EDGE  # bitmask for pixels to ignore in sky calculations
-DEFAULT_IGNORE = 'N30,S30,S7'  # Chips to leave out of all sky calculations
+    maskbits.BADPIX_EDGE | \
+    maskbits.BADPIX_BADAMP # bitmask for pixels to ignore in sky calculations
+DEFAULT_IGNORE = 'N30,S30'  # Chips to leave out of all sky calculations
 DEFAULT_MASK_VALUE = -1.  # Value assigned to unspecified pixels in compressed sky image
 DEFAULT_CCDNUMS = '1-62'  # CCDNUMs to use
 DEFAULT_MINISKY_FILES = 'minisky%%02d.fits'  # Template for mini-sky file names to assemble.
@@ -76,15 +77,19 @@ class MiniDecam(object):
     def __init__(self,
                  blocksize=DEFAULT_BLOCKSIZE,
                  mask_value=DEFAULT_MASK_VALUE,
-                 invalid=('N30','S30','S7'),
-                 header = None):
+                 invalid=DEFAULT_IGNORE,
+                 header = None,
+                 halfS7 = True):
         """
-        blocksize is the size of superpixels used in decimation of the data.  Must be
-        a power of 2 to equally divide the DECam CCDs
+        MiniDecam is compressed version of chosen subset of full science array.
 
-        maskvalue will be inserted into all pixels that are not filled with valid data.
-
-        invalid is a list of DETPOS values for CCDs that will not be used.
+        :Parameters:
+            - `blocksize`: the size of superpixels used in decimation of the data.
+                           Must be a power of 2 to equally divide the DECam CCDs
+            - `mask_value`: value inserted into all pixels not filled with valid data
+            - `invalid`: list of DETPOS values for CCDs that will not be used.
+            - `header`: Any FITS-header-like structure to be added to this image's header
+            - `halfS7`: If set to true, the A amplifier of S7 will always be ignored.
         """
         self.blocksize = blocksize
         self.mask_value = mask_value
@@ -93,7 +98,8 @@ class MiniDecam(object):
             for detpos in invalid:
                 self.invalid.add(detpos.strip())
         self.header = fitsio.FITSHDR(header)
-
+        self.halfS7 = halfS7
+        
         self._chip = [decaminfo.shape[0] / blocksize,
                        decaminfo.shape[1] / blocksize]  # The shape of a decimated CCD
         if decaminfo.shape[0]%self._chip[0] != 0 or \
@@ -123,7 +129,10 @@ class MiniDecam(object):
             if detpos in self.invalid:
                 continue
             y,x = self._corner_of(detpos)
-            xmax = max(xmax, x+self._chip[1])
+            if self.halfS7 and detpos=='S7':
+                xmax = max(xmax, x+self._chip[1]/2)
+            else:
+                xmax = max(xmax, x+self._chip[1])
             ymax = max(ymax, y+self._chip[0])
 
         # Create the data and mask images
@@ -135,7 +144,10 @@ class MiniDecam(object):
             if detpos in self.invalid:
                 continue
             y,x = self._corner_of(detpos)
-            self.mask[y:y+self._chip[0], x:x+self._chip[1]] = True
+            if self.halfS7 and detpos=='S7':
+                self.mask[y:y+self._chip[0], x:x+self._chip[1]/2] = True
+            else:
+                self.mask[y:y+self._chip[0], x:x+self._chip[1]] = True
                 
         return
 
@@ -198,10 +210,19 @@ class MiniDecam(object):
     def fill(self,data, detpos):
         """
         Fill the portion of the mini-image corresponding to detpos with the
-        array given by data.
+        array given by data.  Does not do anything for ignored chips.
         """
+        if detpos in self.invalid:
+            return
+        if data.shape != tuple(self._chip):
+            print data.shape, self._chip, detpos ##
+            raise SkyError('MiniDecam.fill input data has wrong shape ' + str(data.shape))
         y,x = self._corner_of(detpos)
-        self.data[ y:y+self._chip[0], x:x+self._chip[1] ] = data
+        if self.halfS7 and detpos=='S7':
+            self.data[ y:y+self._chip[0], x:x+self._chip[1]/2 ] = \
+              data[:,:data.shape[1]/2]
+        else:
+            self.data[ y:y+self._chip[0], x:x+self._chip[1] ] = data
         return
 
     def vector(self):

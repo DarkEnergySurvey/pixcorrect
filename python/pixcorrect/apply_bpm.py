@@ -35,6 +35,8 @@ class ApplyBPM(PixCorrectImStep):
         """
 
         logger.info('Applying BPM')
+        if image.mask is None:
+            image.init_mask()
         ret_code = bpm_c(image.cstruct, bpm_im.cstruct)
         logger.debug('Finished applying BPM')
         return ret_code

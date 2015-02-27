@@ -2,22 +2,17 @@
 """Apply a flat correction to a raw DES image 
 """
 
-import ctypes
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger, load_shlib
-from despyfits.DESImage import DESImage, DESImageCStruct, scan_fits_section, data_dtype
+from pixcorrect.corr_util import logger
+from despyfits.DESImage import DESImage
+from despyfits import maskbits
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
+from pixcorrect import decaminfo
 
 # Which section of the config file to read for this step
 config_section = 'flat'
-
-# Lowest level access to the C library function
-flatcorrect_lib = load_shlib('libflatcorrect')
-flat_c = flatcorrect_lib.flat_c
-flat_c.restype = ctypes.c_int
-flat_c.argtypes = [DESImageCStruct, DESImageCStruct]
 
 class FlatCorrect(PixCorrectImStep):
     description = "Apply a flat field correction to an image"
@@ -35,8 +30,68 @@ class FlatCorrect(PixCorrectImStep):
         """
  
         logger.info('Applying Flat')
-        ret_code = flat_c(image.cstruct, flat_im.cstruct)
+
+        # Apply flat to the data
+        image.data /= flat_im.data
+
+        # Update variance or weight image if it exists
+        if image.weight is not None:
+            image.weight *= flat_im.data*flat_im.data
+        if image.variance is not None:
+            image.weight /= flat_im.data*flat_im.data
+
+        # If mask image exists, mark as BADPIX_BPM any pixels that have
+        # non-positive flat and are not already flagged.
+        if image.mask is not None:
+            # Find flat-field pixels that are invalid but not already bad for
+            # one of these reasons:
+            badmask = maskbits.BADPIX_BPM +\
+              maskbits.BADPIX_BADAMP +\
+              maskbits.BADPIX_EDGE
+            badflat = np.logical_and( flat_im.data <= 0.,
+                                      image.mask & badmask)
+            mark_these = np.where(badflat.flatten())[0]
+            image.mask.flatten()[mark_these] |= maskbits.BADPIX_BPM
+            
+        # If a weight or variance image already exists, add to it any additional
+        # variance from the flat:
+        if (image.weight is not None or image.variance is not None):
+            if flat_im.weight is not None:
+                var = image.get_variance()
+                f2 = flat_im.data * flat_im.data
+                var *= f2
+                var += image.data*image.data/(flat_im.weight*f2)
+            elif flat_im.variance is not None:
+                var = image.get_variance()
+                f2 = flat_im.data * flat_im.data
+                var *= f2
+                var += image.data*image.data*flat_im.variance/f2
+
+        # Update header keywords for rescaling
+        saturate = 0.
+        for amp in decaminfo.amps:
+            # Acquire the typical scaling factor for each amp from the flat
+            scalekw = 'FLATMED'+amp
+            if scalekw in flat_im.header.keys():
+                # Already stored in the flat's header:
+                scale = flat_im[scalekw]
+            else:
+                # Figure it out ourselves from median of a subsample:
+                sec = DESImage.section2slice(image['DATASEC'+amp])
+                scale = np.median(flat_im.data[sec][::4,::4])
+            if scalekw in image.header.keys():
+                # Add current scaling to any previous ones
+                image[scalekw] = image[scalekw]*scale
+            else:
+                image[scalekw] = scale
+            image['GAIN'+amp] = image['GAIN'+amp] * scale
+            image['SATURAT'+amp] = image['SATURAT'+amp] / scale
+            saturate = max(saturate, image['SATURAT'+amp])
+        # The SATURATE keyword is assigned to maximum of the amps' values.
+        image['SATURATE'] = saturate
+            
         logger.debug('Finished applying Flat')
+        ret_code = 0
         return ret_code
 
 

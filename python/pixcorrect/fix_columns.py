@@ -90,7 +90,6 @@ class FixColumns(PixCorrectImStep):
                                          bpm.mask[-1,:] & cls.CORR))[0]
 
         for icol in fixable:
-            print "Try col ",icol
             # Which pixels in the column are fixable?
             # They need to have only the CORR flag set, and be finite, and not saturated.
             coldata = image.data[:,icol]
@@ -100,7 +99,7 @@ class FixColumns(PixCorrectImStep):
             ignore |= image.mask[:,icol] & maskbits.BADPIX_SATURATE
             use_rows = np.logical_and(colbpm & cls.CORR, ~ignore)
             if np.count_nonzero(use_rows) < cls.MINIMUM_PIXELS:
-                print "Not enough pixels:",np.count_nonzero(use_rows) ##
+                logger.info("Not enough pixels to fix column {:d}".format(icol))
                 continue
 
             # Get a robust estimate of mean level in target column
@@ -153,19 +152,21 @@ class FixColumns(PixCorrectImStep):
                 continue
 
             correction = np.sum(mean*wt)/np.sum(wt) - col_mean
-            print 'correction',correction ##
             correction_var = 1./np.sum(wt) + col_var/col_n
             # Marriner does not apply correction if it's insignificant:
             if correction*correction < correction_var * MINIMUM_SIGNIFICANCE**2:
-                print 'insignificant' ##
+                print 'correction:::',correction ##
+                logger.info('Insignificant correction for ' \
+                             'column {:d} by {:f}'.format(icol,float(correction)))
                 continue
 
             # Apply correction:
             image.data[:,icol][use_rows] += correction
             # Promote the corrected pixels from useless to just imperfect:
             image.mask[:,icol][use_rows] &= ~maskbits.BADPIX_BPM
-            image.mask[:,icol][use_rows] |= ~maskbits.BADPIX_SUSPECT
-            logger.info('Corrected column {:d}'.format(icol))
+            image.mask[:,icol][use_rows] |= maskbits.BADPIX_SUSPECT
+            print 'correction:::',correction ##
+            logger.info('Corrected column {:d} by {:f}'.format(icol,float(correction)))
 
         logger.debug('Finished fixing columns')
 

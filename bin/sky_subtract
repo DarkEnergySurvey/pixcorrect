@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.sky_subtract import sky_subtract
+
+if __name__ == '__main__':
+    sky_subtract.main()
