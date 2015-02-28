@@ -11,9 +11,11 @@ from ConfigParser import SafeConfigParser, NoOptionError
 
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger
-from despyfits.DESImage import DESDataImage, DESImage
+from despyfits.DESImage import DESDataImage, DESImage, weight_dtype, section2slice
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import skyinfo
+from pixcorrect.skyinfo import SkyError
+from pixcorrect import decaminfo
 
 # Which section of the config file to read for this step
 config_section = 'skysubtract'
@@ -26,7 +28,7 @@ class SkySubtract(PixCorrectImStep):
     
     @classmethod
     def __call__(cls, image, fit_filename, pc_filename,
-                weight, domeflat):
+                weight, dome):
         """
         Subtract sky from image using previous principal-components fit. Optionally
         build weight image from fitted sky or all counts, in which case the dome flat
@@ -39,7 +41,7 @@ class SkySubtract(PixCorrectImStep):
             - `pc_filename`: filename for the stored full-res sky principal components
             - `weight`: 'none' to skip weights, 'sky' to calculate weight at sky level,
                          'all' to use all counts
-            - `domeflat`: DESImage for the dome flat, needed if weight=True.
+            - `dome`: DESImage for the dome flat, needed if weight=True.
         """
  
         if weight=='sky' and fit_filename is None:
@@ -59,27 +61,27 @@ class SkySubtract(PixCorrectImStep):
         elif weight=='sky':
             do_weight = True
             sky_weight = True
-        elif weight=='sky':
+        elif weight=='all':
             do_weight = True
             sky_weight = False
         else:
             raise SkyError('Invalid weight value: ' + weight)
 
         if do_weight:
-            if domeflat is None:
+            if dome is None:
                 raise SkyError('sky_subtract needs dome flat when making weights')
         
             if sky_weight:
-                logging.info('Constructing weight image from sky image')
+                logger.info('Constructing weight image from sky image')
                 data = sky
             else:
-                logging.info('Constructing weight image from all counts')
-                data = image.data
+                logger.info('Constructing weight image from all counts')
+                data = image.data + sky
 
             if image.weight is not None or image.variance is not None:
                 image.weight = None
                 image.variance = None
-                logging.warning('Overwriting existing weight image')
+                logger.warning('Overwriting existing weight image')
                 
             """
             We assume in constructing the weight (=inverse variance) image that
@@ -113,7 +115,7 @@ class SkySubtract(PixCorrectImStep):
             """
 
             # Transform the sky image into a variance image
-            var = np.array(data, dtype = DESImage.weight_dtype)
+            var = np.array(data, dtype = weight_dtype)
             for amp in decaminfo.amps:
                 sec = section2slice(image['DATASEC'+amp])
                 invgain = (image['FLATMED'+amp]/image['GAIN'+amp]) / dome.data[sec]
@@ -121,7 +123,7 @@ class SkySubtract(PixCorrectImStep):
                 var[sec] *= invgain
             # Add noise from the dome flat shot noise, if present
             if dome.weight is not None:
-                var += data * data * / (dome.weight*dome.data * dome.data)
+                var += data * data / (dome.weight*dome.data * dome.data)
             elif dome.variance is not None:
                 var += data * data * dome.variance / (dome.data * dome.data)
                 
@@ -155,14 +157,14 @@ class SkySubtract(PixCorrectImStep):
 
         if config.has_option(cls.step_name,'domefilename'):
             dome_filename = config.get(cls.step_name,'domefilename')
-            domeflat = DESDataImage.load(dome_filename)
+            dome = DESImage.load(dome_filename)
         else:
-            domeflat = None
+            dome = None
 
         logger.info('Sky fitting output to %s' % image)
     
         ret_code = cls.__call__(image, fit_filename, pc_filename,
-                                weight, domeflat)
+                                weight, dome)
         return ret_code
 
     @classmethod

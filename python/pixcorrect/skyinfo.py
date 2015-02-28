@@ -256,6 +256,8 @@ class MiniDecam(object):
         """
         self.header['BLOCKSIZ'] = self.blocksize
         self.header['MASKVAL'] = self.mask_value
+        if self.halfS7:
+            self.header['HALFS7'] = ''
         baddet = ''
         for detpos in self.invalid:
             if len(baddet)>0:
@@ -274,8 +276,9 @@ class MiniDecam(object):
         d,hdr = fitsio.read(filename,header=True)
         blocksize = hdr['BLOCKSIZ']
         mask_value = hdr['MASKVAL']
+        halfS7 = 'HALFS7' in hdr.keys()
         invalid = hdr['BADDET'].split(',')
-        out = cls(blocksize, mask_value, invalid, header=hdr)
+        out = cls(blocksize, mask_value, invalid, halfS7=halfS7, header=hdr)
         out.data = d
         return out
 
