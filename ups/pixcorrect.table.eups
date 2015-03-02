@@ -1,3 +1,5 @@
+#this scipy sets up numpy 1.9.1+2 (consistent with despyfits pyfits 3.3+2, fitsio 0.9.6+1)
+setupRequired(scipy 0.14.0+5)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/lib/python2.7/site-packages)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/test/unittests)
