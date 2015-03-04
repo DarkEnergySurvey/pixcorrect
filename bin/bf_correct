@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.bf_correct import bf_correct
+
+if __name__ == '__main__':
+    bf_correct.main()

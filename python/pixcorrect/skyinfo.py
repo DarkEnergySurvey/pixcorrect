@@ -2,7 +2,6 @@
 Classes and defaults for sky subtraction
 """
 
-import copy
 import numpy as np
 import fitsio
 from despyfits.DESImage import data_dtype
