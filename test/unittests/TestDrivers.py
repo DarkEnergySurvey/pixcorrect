@@ -71,7 +71,15 @@ class TestDrivers(TestCase):
 
 #    @skip('')
     def test_nullop(self):
-        self.im_exec_runner('nullop')
+        prod_path = path.join(environ['PIXCORRECT_DIR'],'bin')
+        cmd = path.join(environ['PIXCORRECT_DIR'],'bin','nullop')
+
+        args = (cmd, )
+        with temp_pixcorrect_test_dir() as temp_dir:
+            logger.info('Running: ' + ' '.join(args))
+            ret_code = spawnv(P_WAIT, cmd, args)
+
+        self.assertEqual(ret_code, 0)
 
 #    @skip('')
     def test_nullop_im(self):

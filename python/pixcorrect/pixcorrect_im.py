@@ -18,6 +18,7 @@ from pixcorrect.dbc import precondition, postcondition
 from pixcorrect.corr_util import logger
 
 from pixcorrect.nullop import nullop
+from pixcorrect.nullop_im import nullop_im
 from pixcorrect.bias_correct import bias_correct
 from pixcorrect.apply_bpm import apply_bpm
 from pixcorrect.override_bpm import override_bpm
@@ -70,7 +71,10 @@ class PixCorrectIm(PixCorrectMultistep):
         # take inside the code for its respective step.
 
         if self.do_step('nullop'):
-            nullop(self.sci)
+            nullop()
+
+        if self.do_step('nullop_im'):
+            nullop_im(self.sci)
 
         if self.do_step('bias'):
             bias_correct(self.sci, self.bias)
