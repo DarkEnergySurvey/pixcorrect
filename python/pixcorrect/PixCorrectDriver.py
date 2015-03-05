@@ -61,12 +61,6 @@ class PixCorrectDriver(object):
                                  help="the name of the logfile")
         parser.add_argument('-v', '--verbose', action="count", 
                                  help="be verbose")
-        parser.add_argument('-i', '--in', 
-                                 default=None,
-                                 help='input image file name')
-        parser.add_argument('-o', '--out', 
-                                 default=None,
-                                 help='output image file name')
 
         return parser
 
@@ -101,8 +95,9 @@ class PixCorrectDriver(object):
                     value=value[0]
                 config.set(section, argument, str(value))
                     
-        with open(args.saveconfig, 'w') as out_config:
-            config.write(out_config)
+        if args.saveconfig is not None and len(args.saveconfig)>0:
+            with open(args.saveconfig, 'w') as out_config:
+                config.write(out_config)
 
         return config, args
 
@@ -111,9 +106,14 @@ class PixCorrectDriver(object):
         config, args = cls.config()
 
         # start logger
-        logging.basicConfig(filename=args.log,
-                            format="%(asctime)s\t%(message)s",
-                            level=logging.WARNING)
+        if args.log is not None and len(args.log)>0:
+            logging.basicConfig(filename=args.log,
+                                format="%(asctime)s\t%(message)s",
+                                level=logging.WARNING)
+        else:
+            logging.basicConfig(format="%(asctime)s\t%(message)s",
+                                level=logging.WARNING)
+
         global logger
         logger = logging.getLogger()
         if args.verbose > 0:
@@ -135,12 +135,12 @@ class PixCorrectDriver(object):
 class PixCorrectStep(PixCorrectDriver):
 
     # In all subclasses, the __call__ method should take all unpacked
-    # parameters, while the step_run takes the sci image (or arroy of sci images)
+    # parameters, while the step_run takes the sci image (or array of sci images)
     # and the configuration object
 
     # The call method should actually apply the corrections
     @classmethod
-    def __call__(cls, image):
+    def __call__(cls):
         """Execute the step
 
         :Parameters:
@@ -150,6 +150,48 @@ class PixCorrectStep(PixCorrectDriver):
         """
         raise NotImplemetedError
 
+
+    # The step_run method unpacks parameters from config, and 
+    # calls __call__ to do the corrections.
+    @classmethod
+    def step_run(cls, config):
+        """Customized execution for this step
+
+        :Parameters:
+            - `config`: the configuration from which to get other parameters
+
+        """
+        ret_code = cls.__call__()
+        return ret_code
+
+    @classmethod
+    def run(cls, config):
+        """Execute the step, loading and running the input and output
+        """
+        ret_code = cls.step_run(config)
+        return ret_code
+
+class PixCorrectImStep(PixCorrectStep):
+
+    @classmethod
+    def parser(cls):
+        """Generate a parser for a specific step
+        """
+        parser = cls.common_parser()
+
+        parser.add_argument('-i', '--in', 
+                                 default=None,
+                                 help='input image file name')
+        parser.add_argument('-o', '--out', 
+                                 default=None,
+                                 help='output image file name')
+        parser.add_argument('-n', '--ccdnum', nargs='?', 
+                            type=int,
+                            help='input image CCD number')
+
+        cls.add_step_args(parser)
+
+        return parser
 
     # The step_run method unpacks parameters from config, and 
     # calls __call__ to do the corrections.
@@ -164,23 +206,6 @@ class PixCorrectStep(PixCorrectDriver):
         """
         ret_code = cls.__call__(image)
         return ret_code
-
-
-class PixCorrectImStep(PixCorrectStep):
-
-    @classmethod
-    def parser(cls):
-        """Generate a parser for a specific step
-        """
-        parser = cls.common_parser()
-
-        parser.add_argument('-n', '--ccdnum', nargs='?', 
-                            type=int,
-                            help='input image CCD number')
-
-        cls.add_step_args(parser)
-
-        return parser
 
     @classmethod
     def run(cls, config):
@@ -204,6 +229,38 @@ class PixCorrectImStep(PixCorrectStep):
 class PixCorrectFPStep(PixCorrectStep):
 
     @classmethod
+    def parser(cls):
+        """Generate a parser for a specific step
+        """
+        parser = cls.common_parser()
+
+        parser.add_argument('-i', '--in', 
+                                 default=None,
+                                 help='input image file name')
+        parser.add_argument('-o', '--out', 
+                                 default=None,
+                                 help='output image file name')
+
+        cls.add_step_args(parser)
+
+        return parser
+
+    # The step_run method unpacks parameters from config, and 
+    # calls __call__ to do the corrections.
+    @classmethod
+    def step_run(cls, image, config):
+        """Customized execution for this step
+
+        :Parameters:
+            - `image`: the DESImage on which to operate
+            - `config`: the configuration from which to get other parameters
+
+        """
+        ret_code = cls.__call__(image)
+        return ret_code
+
+
+    @classmethod
     def run(cls, config):
         """Execute the step, loading and running the input and output
         """
@@ -222,6 +279,23 @@ class PixCorrectMultistep(PixCorrectDriver):
     def __init__(self, config):
         self.config = config
         self._image_data = {}
+
+    @classmethod
+    def parser(cls):
+        """Generate a parser for a specific step
+        """
+        parser = cls.common_parser()
+
+        parser.add_argument('-i', '--in', 
+                                 default=None,
+                                 help='input image file name')
+        parser.add_argument('-o', '--out', 
+                                 default=None,
+                                 help='output image file name')
+
+        cls.add_step_args(parser)
+
+        return parser
 
     @classmethod
     def run(cls, config):

@@ -103,6 +103,7 @@ class TestPixCorrectIm(TestCase):
     def test_bias(self):
         with temp_pixcorrect_test_dir() as temp_dir:
             config = self.new_config(temp_dir)
+            self.add_bpm_config(config)
             self.add_bias_config(config)
             pix_corrector = PixCorrectIm(config)
             logger.info('Doing bias correction')
@@ -116,6 +117,7 @@ class TestPixCorrectIm(TestCase):
             im_cmp.log(logger, ref_im)
             self.assertTrue(im_cmp.match())
 
+#    @skip("")
     def test_flat(self):
         with temp_pixcorrect_test_dir() as temp_dir:
             config = self.new_config(temp_dir)
@@ -124,6 +126,7 @@ class TestPixCorrectIm(TestCase):
             logger.info('Doing flat correction')
             pix_corrector()
 
+#    @skip("")
     @expectedFailure
     def test_bpm(self):
         with temp_pixcorrect_test_dir() as temp_dir:
@@ -141,6 +144,7 @@ class TestPixCorrectIm(TestCase):
             im_cmp.log(logger, ref_im)
             self.assertTrue(im_cmp.match())
 
+#    @skip("")
     @expectedFailure
     def test_nullop(self):
         with temp_pixcorrect_test_dir() as temp_dir:
