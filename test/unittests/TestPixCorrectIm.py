@@ -84,6 +84,9 @@ class TestPixCorrectIm(TestCase):
     def add_nullop_config(self, config):
         config.set('pixcorrect_im', 'nullop', 'True')
 
+    def add_nullop_im_config(self, config):
+        config.set('pixcorrect_im', 'nullop_im', 'True')
+
     def add_bias_config(self, config):
         add_ref_data_config(config, 'bias', 'biascor.fits')
 
@@ -145,7 +148,7 @@ class TestPixCorrectIm(TestCase):
             self.assertTrue(im_cmp.match())
 
 #    @skip("")
-    @expectedFailure
+#    @expectedFailure
     def test_nullop(self):
         with temp_pixcorrect_test_dir() as temp_dir:
             config = self.new_config(temp_dir)
@@ -154,10 +157,19 @@ class TestPixCorrectIm(TestCase):
             logger.debug('Doing nullop')
             pix_corrector()
 
+    @expectedFailure
+    def test_nullop_im(self):
+        with temp_pixcorrect_test_dir() as temp_dir:
+            config = self.new_config(temp_dir)
+            self.add_nullop_im_config(config)
+            pix_corrector = PixCorrectIm(config)
+            logger.debug('Doing nullop_im')
+            pix_corrector()
+
             test_im = DESImage.load( config.get('pixcorrect_im', 'out') )
             ref_im = DESImage.load( path.join(ref_dir, 'scix.fits') )
             im_cmp = ref_im.compare( test_im )
-            logger.info("Nullop results")
+            logger.info("Nullop_Im results")
             logger.debug(str(im_cmp.header))
             im_cmp.log(logger, ref_im)
             self.assertTrue(im_cmp.match())

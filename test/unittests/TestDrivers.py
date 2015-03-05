@@ -73,6 +73,10 @@ class TestDrivers(TestCase):
     def test_nullop(self):
         self.im_exec_runner('nullop')
 
+#    @skip('')
+    def test_nullop_im(self):
+        self.im_exec_runner('nullop_im')
+
 #    @skip('')    
     def test_bias_correct(self):
         self.im_exec_runner('bias_correct','--bias', self.bias_fname)

@@ -3,7 +3,7 @@
 """
 
 # imports
-from pixcorrect.PixCorrectDriver import PixCorrectImStep
+from pixcorrect.PixCorrectDriver import PixCorrectStep
 
 # constants
 
@@ -14,16 +14,13 @@ config_section = 'nullop'
 # interface functions
 # classes
 
-class NullOp(PixCorrectImStep):
+class NullOp(PixCorrectStep):
     description = "Do nothing"
     step_name = config_section
 
     @classmethod
-    def __call__(cls, image):
+    def __call__(cls):
         """Execute a step that does nothing
-
-        :Parameters:
-            - `image`: the DESImage on which not to operate
 
         Applies the non-correction "in place"
         """

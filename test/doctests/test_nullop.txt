@@ -14,8 +14,6 @@ Configure mask_saturatio::
   >>> config = SafeConfigParser()
   >>> from pixcorrect.nullop import config_section 
   >>> config.add_section(config_section)
-  >>> config.set(config_section, 'in', path.join(data_home, 'scix.fits'))
-  >>> config.set(config_section, 'out', path.join(tmp_data, 'nullop_out.fits'))
 
 Run nullop::
   >>> from pixcorrect.nullop import nullop
