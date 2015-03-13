@@ -1,4 +1,5 @@
-setupRequired(scipy 0.14.0+5)
+#setupRequired(scipy 0.14.0+5)
+setupRequired(scipy 0.14.0+4)
 envPrepend(PATH, ${PRODUCT_DIR}/build/scripts-2.7)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/test/unittests)

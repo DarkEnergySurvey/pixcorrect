@@ -17,16 +17,19 @@ from pixcorrect import imtypes
 from pixcorrect.dbc import precondition, postcondition
 from pixcorrect.corr_util import logger
 
-from pixcorrect.nullop import nullop
-from pixcorrect.nullop_im import nullop_im
 from pixcorrect.bias_correct import bias_correct
-from pixcorrect.apply_bpm import apply_bpm
-from pixcorrect.override_bpm import override_bpm
-from pixcorrect.fix_cols import fix_cols
-from pixcorrect.mask_saturation import mask_saturation
+from pixcorrect.make_mask import make_mask
+from pixcorrect.fix_columns import fix_columns
 from pixcorrect.linearity_correct import linearity_correct
 from pixcorrect.gain_correct import gain_correct
 from pixcorrect.flat_correct import flat_correct
+from pixcorrect.null_weights import null_weights
+from pixcorrect.sky_compress import sky_compress
+from pixcorrect.sky_subtract import sky_subtract
+from pixcorrect.bf_correct import bf_correct
+from pixcorrect import bfinfo
+from pixcorrect import skyinfo
+
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
 class PixCorrectIm(PixCorrectMultistep):
@@ -70,41 +73,68 @@ class PixCorrectIm(PixCorrectMultistep):
         # be assiciated with shoveling data between steps. Everything else should
         # take inside the code for its respective step.
 
-        if self.do_step('nullop'):
-            nullop()
-
-        if self.do_step('nullop_im'):
-            nullop_im(self.sci)
-
+        # Get the science image
+        self.sci = DESImage.load(self.config.get('pixcorrect_im','in'))
+        
+        # Bias subtraction
         if self.do_step('bias'):
             bias_correct(self.sci, self.bias)
         self.clean_im('bias')
 
-        if self.do_step('bpm'):
-            if self.do_step('override_bpm'):
-                override_bpm(self.sci, self.bpm)
-            else:
-                apply_bpm(self.sci, self.bpm)
+        # Linearization
+        if self.do_step('lincor'):
+            lincor_fname=self.config.get('pixcorrect_im','lincor')
+            linearity_correct(self.sci,lincor_fname)
 
-        if self.do_step('fixcol'):
-            fix_cols(self.sci, self.bpm)
-
-        # We should be done with the BPM; let python reclaim the memory
-        self.clean_im('bpm')
-
-        if self.do_step('mask_saturation'):
-            mask_saturation(self.sci)
-
-	if self.do_step('lincor'):
-	    lincor_fname=self.config.get('pixcorrect_im','lincor')
-	    linearity_correct(self.sci,lincor_fname)
-
+        # B/F correction
+        if self.do_step('bf'):
+            bf_fname = self.config.get('pixcorrect_im', 'bf')
+            bf_correct(self.sci, bf_fname, bfinfo.DEFAULT_BFMASK)
+            
+        # Gain correct
         if self.do_step('gain'):
             gain_correct(self.sci)
 
-        if self.do_step('flat'):
+        # Make the mask plane and mark saturated pixels.  Note that flags
+        # are set to mark saturated pixels and clear any previously existing mask.
+        if self.do_step('bpm'):
+            make_mask(self.sci, self.bpm, saturate=True, clear=True)
+
+        # We should be done with the BPM; let python reclaim the memory
+        if not self.do_step('fixcol'):
+            self.clean_im('bpm')
+
+        # Flat field
+        if self.do_step('flat') and not self.do_step('noflat'):
             flat_correct(self.sci, self.flat)
-        self.clean_im('flat')
+            if not self.do_step('sky'):
+                self.clean_im('flat')
+
+        # Fix columns
+        if self.do_step('fixcols'):
+            fix_columns(self.sci, self.bpm)
+            self.clean_im('bpm')
+
+        # Make mini-sky image
+        if self.do_step('mini'):
+            blocksize = self.config.getint('pixcorrect_im','blocksize')
+            sky_compress(self.sci, mini, blocksize, skyinfo.DEFAULT_SKYMASK)
+
+        # Subtract sky and make weight plane - forcing option to do "sky-only" weight
+        if self.do_step('sky'):
+            fit_fname = self.config.get('pixcorrect_im','skyfit')
+            sky_subtract(self.sci, fit_fname, sky, weight='sky', sci.flat)
+        self.clean('flat')
+        
+        # Star flatten
+        if self.do_step('starflat'):
+            flat_correct(self.sci, self.starflat)
+        self.clean_im('starflat')
+
+        # Re-saturate pixels (??? Can also null weights at selected mask bits here)
+        if self.do_step('resaturate'):
+            null_weights(self.sci, bitmask=0, resaturate=True)
+        
 
         out_fname = self.config.get('pixcorrect_im', 'out')
         self.sci.save(out_fname)
@@ -115,20 +145,34 @@ class PixCorrectIm(PixCorrectMultistep):
     def add_step_args(cls, parser):
         """Add arguments specific to pixcorrect driver
         """
-        parser.add_argument('--bias', nargs=1, default=None,
+        parser.add_argument('--bias', default=None,
                             help='Bias correction image')
-        parser.add_argument('--bpm', nargs=1, default=None, 
-                            help='bad pixel mask filename')
-        parser.add_argument('--fix_cols', action='store_true',
-                            help='fix bad columns')
- 	parser.add_argument('--lincor', nargs=1, default=None, 
-                            help='Linearity Correction Table')
+        parser.add_argument('--lincor', default=None, 
+                            help='linearity correction Table')
+        parser.add_argument('--bf', default=None, 
+                            help='brighter/fatter correction Table')
         parser.add_argument('--gain', action='store_true',
                             help='convert ADU to e- using gain values in hdr')
-        parser.add_argument('--mask_saturation', action='store_true',
-                            help='add saturated pixels to the mask')
-        parser.add_argument('--flat', nargs=1, default=None,
-                            help='Flat field correction image')
+        parser.add_argument('--bpm', default=None, 
+                            help='bad pixel mask filename')
+        parser.add_argument('--flat', default=None,
+                            help='Dome flat correction image')
+        parser.add_argument('--fixcols', action='store_true',
+                            help='fix bad columns')
+        parser.add_argument('--mini', default=None,
+                            help='compressed sky image filename')
+        parser.add_argument('--blocksize', default=skyinfo.DEFAULT_BLOCKSIZE,
+                            help='blocksize for compressed sky image')
+        parser.add_argument('--sky', default=None,
+                            help='Template file for sky subtraction and weight creation.' \
+                            ' Requires flat and skyfit files be given.')
+        parser.add_argument('--skyfit', default=None,
+                            help='MiniDECam file holding sky fit coefficients')
+        parser.add_argument('--starflat', default=None,
+                            help='Star flat correction image')
+        parser.add_argument('--resaturate', action='store_true',
+                            help='Raise all saturated pixels above SATURATE value')
+        return
 
 if __name__ == '__main__':
     PixCorrectIm.main()

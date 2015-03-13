@@ -86,6 +86,7 @@ class FlatCorrect(PixCorrectImStep):
                 image[scalekw] = scale
             image['GAIN'+amp] = image['GAIN'+amp] * scale
             image['SATURAT'+amp] = image['SATURAT'+amp] / scale
+            ## ??? SKYVAR keyword scaling too ???
             saturate = max(saturate, image['SATURAT'+amp])
         # The SATURATE keyword is assigned to maximum of the amps' values.
         image['SATURATE'] = saturate

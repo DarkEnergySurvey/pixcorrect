@@ -41,7 +41,7 @@ class SkySubtract(PixCorrectImStep):
             - `pc_filename`: filename for the stored full-res sky principal components
             - `weight`: 'none' to skip weights, 'sky' to calculate weight at sky level,
                          'all' to use all counts
-            - `dome`: DESImage for the dome flat, needed if weight=True.
+            - `dome`: DESImage for the dome flat, needed if weight is not 'none'.
         """
  
         if weight=='sky' and fit_filename is None:
@@ -129,6 +129,8 @@ class SkySubtract(PixCorrectImStep):
                 
             image.variance = var
 
+            ## ??? Add SKYVAR[AB] keywords for Mangle ???
+            
             logger.debug('Finished weight construction')
 
         ret_code=0
