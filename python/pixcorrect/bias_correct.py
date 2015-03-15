@@ -5,7 +5,7 @@
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, do_once
 from despyfits.DESImage import DESImage
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 
@@ -18,6 +18,7 @@ class BiasCorrect(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
+    @do_once(1,'DESBIAS')
     def __call__(cls, image, bias_im):
         """Apply a bias correction to an image
 
@@ -39,6 +40,10 @@ class BiasCorrect(PixCorrectImStep):
                 var = image.get_variance()
                 var += bias_im.variance
         logger.debug('Finished applying Bias')
+        if bias_im.sourcefile is None:
+            image.write_key('BIASFIL', 'UNKNOWN', comment='Bias correction file')
+        else:
+            image.write_key('BIASFIL', bias_im.sourcefile, comment='Bias correction file')
         ret_code = 0
         return ret_code
 

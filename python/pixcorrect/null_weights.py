@@ -50,13 +50,18 @@ class NullWeights(PixCorrectImStep):
             weight = image.get_weight()
             kill = np.array( image.mask & bitmask, dtype=bool)
             weight[kill] = 0.
+            image.header.write_history(time.asctime(time.localtime()) + \
+                                       ' Null weights with mask 0x{:04X}'.format(bitmask))
             logger.debug('Finished nulling weight image')
             
         if resaturate:
             logger.info('Re-saturating pixels from mask bits')
             sat = np.array( image.mask & BADPIX_SATURATE, dtype=bool)
             image.data[sat] = 1.01 * image['SATURATE']
+            image.header.write_history(time.asctime(time.localtime()) + \
+                                       ' Set saturated pixels to {:.0f}')
             logger.debug('Finished nulling weight image')
+
 
         ret_code = 0
         return ret_code

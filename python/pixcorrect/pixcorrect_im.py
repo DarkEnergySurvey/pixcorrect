@@ -75,7 +75,7 @@ class PixCorrectIm(PixCorrectMultistep):
 
         # Get the science image
         self.sci = DESImage.load(self.config.get('pixcorrect_im','in'))
-        
+
         # Bias subtraction
         if self.do_step('bias'):
             bias_correct(self.sci, self.bias)
@@ -86,26 +86,25 @@ class PixCorrectIm(PixCorrectMultistep):
             lincor_fname=self.config.get('pixcorrect_im','lincor')
             linearity_correct(self.sci,lincor_fname)
 
+        # Make the mask plane and mark saturated pixels.  Note that flags
+        # are set to mark saturated pixels and keep any previously existing mask bits.
+        if self.do_step('bpm'):
+            make_mask(self.sci, self.bpm, saturate=True, clear=False)
+
+        if self.do_step('gain'):
+            gain_correct(self.sci)
+            
         # B/F correction
         if self.do_step('bf'):
             bf_fname = self.config.get('pixcorrect_im', 'bf')
             bf_correct(self.sci, bf_fname, bfinfo.DEFAULT_BFMASK)
             
-        # Gain correct
-        if self.do_step('gain'):
-            gain_correct(self.sci)
-
-        # Make the mask plane and mark saturated pixels.  Note that flags
-        # are set to mark saturated pixels and clear any previously existing mask.
-        if self.do_step('bpm'):
-            make_mask(self.sci, self.bpm, saturate=True, clear=True)
-
-        # We should be done with the BPM; let python reclaim the memory
+        # If done with the BPM; let python reclaim the memory
         if not self.do_step('fixcol'):
             self.clean_im('bpm')
 
         # Flat field
-        if self.do_step('flat') and not self.do_step('noflat'):
+        if self.do_step('flat'):
             flat_correct(self.sci, self.flat)
             if not self.do_step('sky'):
                 self.clean_im('flat')
@@ -117,18 +116,20 @@ class PixCorrectIm(PixCorrectMultistep):
 
         # Make mini-sky image
         if self.do_step('mini'):
+            mini = self.config.get('pixcorrect_im','mini')
             blocksize = self.config.getint('pixcorrect_im','blocksize')
             sky_compress(self.sci, mini, blocksize, skyinfo.DEFAULT_SKYMASK)
 
         # Subtract sky and make weight plane - forcing option to do "sky-only" weight
         if self.do_step('sky'):
+            sky_fname = self.config.get('pixcorrect_im','sky')
             fit_fname = self.config.get('pixcorrect_im','skyfit')
-            sky_subtract(self.sci, fit_fname, sky, weight='sky', sci.flat)
-        self.clean('flat')
+            sky_subtract(self.sci, fit_fname, sky_fname, 'sky', self.flat)
+        self.clean_im('flat')
         
         # Star flatten
         if self.do_step('starflat'):
-            flat_correct(self.sci, self.starflat)
+            starflat_correct(self.sci, self.starflat)
         self.clean_im('starflat')
 
         # Re-saturate pixels (??? Can also null weights at selected mask bits here)

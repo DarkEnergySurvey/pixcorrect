@@ -5,7 +5,7 @@
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, do_once
 from despyfits.DESImage import DESImage
 from despyfits import maskbits
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
@@ -19,8 +19,9 @@ class FlatCorrect(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
-    def __call__(cls, image, flat_im):
-        """Apply a flat field correction to an image
+    def _doit(cls, image, flat_im):
+        """Apply a flat field correction to an image - used for both dome
+        and star flats.
 
         :Parameters:
             - `image`: the DESImage to apply a bias correction
@@ -28,7 +29,6 @@ class FlatCorrect(PixCorrectImStep):
 
         Applies the correction "in place"
         """
- 
         logger.info('Applying Flat')
 
         # Apply flat to the data
@@ -69,6 +69,7 @@ class FlatCorrect(PixCorrectImStep):
 
         # Update header keywords for rescaling
         saturate = 0.
+        scales = []
         for amp in decaminfo.amps:
             # Acquire the typical scaling factor for each amp from the flat
             scalekw = 'FLATMED'+amp
@@ -79,6 +80,7 @@ class FlatCorrect(PixCorrectImStep):
                 # Figure it out ourselves from median of a subsample:
                 sec = DESImage.section2slice(image['DATASEC'+amp])
                 scale = np.median(flat_im.data[sec][::4,::4])
+            scales.append(scale)
             if scalekw in image.header.keys():
                 # Add current scaling to any previous ones
                 image[scalekw] = image[scalekw]*scale
@@ -86,11 +88,21 @@ class FlatCorrect(PixCorrectImStep):
                 image[scalekw] = scale
             image['GAIN'+amp] = image['GAIN'+amp] * scale
             image['SATURAT'+amp] = image['SATURAT'+amp] / scale
-            ## ??? SKYVAR keyword scaling too ???
+            # Scale the SKYVAR if it's already here
+            kw = 'SKYVAR'+amp
+            if kw in image.header.keys():
+                image[kw] = image[kw] / (scale*scale)
             saturate = max(saturate, image['SATURAT'+amp])
         # The SATURATE keyword is assigned to maximum of the amps' values.
         image['SATURATE'] = saturate
             
+        # Some other keywords that we will adjust crudely with mean rescaling
+        # if they are present:
+        scale = np.mean(scales)
+        for kw in ('SKYBRITE','SKYSIGMA'):
+            if kw in image.header.keys():
+                image[kw] = image[kw] / scale
+
         logger.debug('Finished applying Flat')
         ret_code = 0
         return ret_code
@@ -113,6 +125,26 @@ class FlatCorrect(PixCorrectImStep):
         ret_code = cls.__call__(image, flat_im)
         return ret_code
 
+    @classmethod
+    @do_once(1,'DESFLAT')
+    def __call__(cls, image, flat_im):
+        """Apply a flat field correction to an image
+
+        :Parameters:
+            - `image`: the DESImage to flatten
+            - `flat_im`:  the flat correction image to apply
+
+        Applies the correction "in place"
+        """
+        ret_code = cls._doit(image, flat_im)
+
+        if flat_im.sourcefile is None:
+            image.write_key('FLATFIL', 'UNKNOWN', comment='Dome flat correction file')
+        else:
+            image.write_key('FLATFIL', flat_im.sourcefile, comment='Dome flat correction file')
+
+        return ret_code
+            
     @classmethod
     def add_step_args(cls, parser):
         """Add arguments specific application of the flat field correction

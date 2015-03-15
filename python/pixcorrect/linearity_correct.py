@@ -8,7 +8,7 @@ import numpy as np
 import fitsio
 from scipy import interpolate
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, do_once
 from despyfits.DESImage import DESImage, section2slice
 from despyfits.DESFITSInventory import DESFITSInventory
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
@@ -21,6 +21,7 @@ class LinearityCorrect(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
+    @do_once(1,'DESLINC')
     def __call__(cls, image, fname_lincor):
         """Apply a linearity correction
 
@@ -89,6 +90,8 @@ class LinearityCorrect(PixCorrectImStep):
                                 image.data[secb]<=np.max(nonlinear))
         image.data[secb][in_range]=interpB(image.data[secb][in_range])
 
+        image.write_key('LINCFIL', fname_lincor, comment='Nonlinearity correction file')
+        
         ret_code=0
         return ret_code
 

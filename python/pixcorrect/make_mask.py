@@ -4,6 +4,7 @@
 
 from os import path
 import numpy as np
+import time
 from pixcorrect.corr_util import logger
 from despyfits.DESImage import DESImage, DESBPMImage, section2slice
 from despyfits.maskbits import *
@@ -43,46 +44,72 @@ class MakeMask(PixCorrectImStep):
             return ret_code
 
         if bpm_im is not None:
-            logger.info('Applying BPM')
-            # Mark the unusable data
-            bitmask = BPMDEF_FLAT_MIN | \
-              BPMDEF_FLAT_MAX | \
-              BPMDEF_FLAT_MASK | \
-              BPMDEF_BIAS_HOT | \
-              BPMDEF_BIAS_WARM | \
-              BPMDEF_BIAS_MASK | \
-              BPMDEF_BIAS_COL | \
-              BPMDEF_CORR | \
-              BPMDEF_WACKY_PIX
-            # ??? Add FUNKY_COL to the list of unusable pixels?
-            print bpm_im.mask.shape, bitmask, image.mask.shape ##
-            mark = (bpm_im.mask & bitmask) != 0
-            image.mask[mark] |= BADPIX_BPM
+            # Check for header keyword of whether it's been done
+            kw = 'DESBPM'
+            if kw in image.header.keys():
+                logger.warning('Skipping BPM application ('+kw+' already set)')
+            else:
+                logger.info('Applying BPM')
+                # Mark the unusable data
+                bitmask = BPMDEF_FLAT_MIN | \
+                    BPMDEF_FLAT_MAX | \
+                    BPMDEF_FLAT_MASK | \
+                    BPMDEF_BIAS_HOT | \
+                    BPMDEF_BIAS_WARM | \
+                    BPMDEF_BIAS_MASK | \
+                    BPMDEF_BIAS_COL | \
+                    BPMDEF_CORR | \
+                    BPMDEF_WACKY_PIX
+                # ??? Add FUNKY_COL to the list of unusable pixels?
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_BPM
 
-            # Mark edge pixels and bad amplifier with their own bits
-            bitmask = BPMDEF_EDGE
-            mark = (bpm_im.mask & bitmask) != 0
-            image.mask[mark] |= BADPIX_EDGE
-            bitmask = BPMDEF_BADAMP
-            mark = (bpm_im.mask & bitmask) != 0
-            image.mask[mark] |= BADPIX_BADAMP
+                # Mark edge pixels and bad amplifier with their own bits
+                bitmask = BPMDEF_EDGE
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_EDGE
+                bitmask = BPMDEF_BADAMP
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_BADAMP
 
-            # Mark slightly dodgy pixels
-            bitmask = BPMDEF_FUNKY_COL | \
-              BPMDEF_TAPE_BUMP
-            # ??? Is this what to do with FUNKY_COL ???
-            mark = (bpm_im.mask & bitmask) != 0
-            image.mask[mark] |= BADPIX_SUSPECT
+                # Mark slightly dodgy pixels
+                bitmask = BPMDEF_FUNKY_COL | \
+                    BPMDEF_TAPE_BUMP
+                # ??? Is this what to do with FUNKY_COL ???
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_SUSPECT
               
-            logger.debug('Finished applying BPM')
+                image[kw] = time.asctime(time.localtime())
+                image.write_key(kw, time.asctime(time.localtime()),
+                                comment = 'Construct mask from BPM')
+                if bpm_im.sourcefile is None:
+                    image.write_key('BPMFIL', 'UNKNOWN', comment='BPM file used to build mask')
+                else:
+                    image.write_key('BPMFIL', bpm_im.sourcefile, comment='BPM file used to build mask')
+                        
+                logger.debug('Finished applying BPM')
 
         if saturate:
-            logger.info('Flagging saturated pixels')
-            for amp in decaminfo.amps:
-                sec = section2slice(image['DATASEC'+amp])
-                sat = image['SATURAT'+amp]
-                image.mask[sec][image.data[sec]>=sat] |= BADPIX_SATURATE
-            logger.debug('Finished flagging saturated pixels')
+            # Check for header keyword of whether it's been done
+            kw = 'DESSAT'
+            if kw in image.header.keys():
+                logger.warning('Skipping saturation check ('+kw+' already set)')
+            else:
+                logger.info('Flagging saturated pixels')
+                nsat = 0
+                for amp in decaminfo.amps:
+                    sec = section2slice(image['DATASEC'+amp])
+                    sat = image['SATURAT'+amp]
+                    satpix = image.data[sec]>=sat
+                    image.mask[sec][satpix] |= BADPIX_SATURATE
+                    nsat += np.count_nonzero(satpix)
+
+                image.write_key(kw, time.asctime(time.localtime()),
+                                comment = 'Flag saturated pixels')
+                image.write_key('NSATPIX',nsat,
+                                comment='Number of saturated pixels')
+                
+                logger.debug('Finished flagging saturated pixels')
 
         return ret_code
 

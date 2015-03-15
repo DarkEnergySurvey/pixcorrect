@@ -15,7 +15,7 @@ import numpy as np
 from ConfigParser import SafeConfigParser, NoOptionError
 
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, do_once
 from despyfits.DESImage import DESDataImage, DESImage, DESBPMImage
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect.clippedMean import clippedMean
@@ -56,6 +56,7 @@ class FixColumns(PixCorrectImStep):
         return use
     
     @classmethod
+    @do_once(1,'DESFIXC')
     def __call__(cls, image, bpm):
         """
         Find and fix correctable columns in the image as indicated by the BPMDEF_CORR
@@ -168,7 +169,14 @@ class FixColumns(PixCorrectImStep):
             print 'correction:::',correction ##
             logger.info('Corrected column {:d} by {:f}'.format(icol,float(correction)))
 
+        if bpm.sourcefile is None:
+            image.write_key('FIXCFIL', 'UNKNOWN', comment='BPM file for fixing columns')
+        else:
+            image.write_key('FIXCFIL', bpm.sourcefile, comment='BPM file for fixing columns')
+
         logger.debug('Finished fixing columns')
+
+        
 
         ret_code=0
         return ret_code

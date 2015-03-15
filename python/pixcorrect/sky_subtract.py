@@ -2,7 +2,8 @@
 """
 Subtract sky from image by summing sky principal components with pre-computed coefficients
 for this exposure.
-Also create or overwrite a weight image, using read noise, flat-field noise, and shot noise either from all counts or just from sky.
+Also create or overwrite a weight image, using read noise, flat-field noise, and shot
+noise either from all counts or just from sky.
 """
 
 from os import path
@@ -10,7 +11,7 @@ import numpy as np
 from ConfigParser import SafeConfigParser, NoOptionError
 
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, do_once
 from despyfits.DESImage import DESDataImage, DESImage, weight_dtype, section2slice
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import skyinfo
@@ -27,6 +28,7 @@ class SkySubtract(PixCorrectImStep):
     step_name = config_section
     
     @classmethod
+    @do_once(1,'DESSKYSB')
     def __call__(cls, image, fit_filename, pc_filename,
                 weight, dome):
         """
@@ -53,8 +55,13 @@ class SkySubtract(PixCorrectImStep):
             templates = skyinfo.SkyPC.load(pc_filename)
             sky = templates.sky(mini.coeffs)
             image.data -= sky
+            image.write_key('SKYSBFIL', pc_filename, comment = 'Sky subtraction template file')
+            for i,c in enumerate(mini.coeffs):
+                image.write_key('SKYPC{:>02d}', c, comment='Sky template coefficient')
             logger.debug('Finished sky subtraction')
-
+        else:
+            sky = None
+            
         if weight=='none':
             do_weight = False
             sky_weight = False
@@ -76,7 +83,12 @@ class SkySubtract(PixCorrectImStep):
                 data = sky
             else:
                 logger.info('Constructing weight image from all counts')
-                data = image.data + sky
+                if sky is None:
+                    # If we did not subtract a sky, the image data gives total counts
+                    data = image.data
+                else:
+                    # Add sky back in to get total counts
+                    data = image.data + sky
 
             if image.weight is not None or image.variance is not None:
                 image.weight = None
@@ -129,7 +141,25 @@ class SkySubtract(PixCorrectImStep):
                 
             image.variance = var
 
-            ## ??? Add SKYVAR[AB] keywords for Mangle ???
+            # Now there are statistics desired for the output image header.
+            # First, the median variance at sky level on the two amps, SKYVAR[AB]
+            meds = []
+            for amp in decaminfo.amps:
+                sec = section2slice(image['DATASEC'+amp])
+                v = np.median(var[sec][::4,::4])
+                image.write_key('SKYVAR'+amp, v,
+                                comment='Median noise variance at sky level, amp ' + amp)
+                meds.append(v)
+            # SKYSIGMA is overall average noise level
+            image.write_key('SKYSIGMA', np.sqrt(np.mean(meds)),
+                            comment='RMS noise at sky level')
+            # SKYBRITE is a measure of sky brightness.  Use the sky image if we've got it, else
+            # use the data
+            if sky is None:
+                skybrite = np.median(data[::4,::4])
+            else:
+                skybrite = np.median(sky[::2,::2])
+            image.write_key('SKYBRITE', skybrite, comment = 'Median sky brightness')
             
             logger.debug('Finished weight construction')
 

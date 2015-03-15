@@ -4,7 +4,7 @@
 
 from os import path
 import numpy as np
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, do_once
 from despyfits.DESImage import DESImage, section2slice, data_dtype
 from despyfits.maskbits import *
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
@@ -19,6 +19,7 @@ class BFCorrect(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
+    @do_once(1,'DESBFC')
     def __call__(cls, image, bffile, bfmask):
         """
         Apply brighter-fatter correction to an image, and set BADPIX_SUSPECT bit
@@ -105,6 +106,8 @@ class BFCorrect(PixCorrectImStep):
         change_mask[ignore] = False          # Don't mask what's already bad
         image.mask[change_mask] |= BADPIX_SUSPECT
 
+        image.write_key('BFCFIL', bffile, comment='Brighter/fatter correction file')
+        
         ret_code = 0
         return ret_code
 
