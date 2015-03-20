@@ -46,7 +46,10 @@ class ScaleFlat(PixCorrectImStep):
         logger.info('SCALMEAN=%.2f NORMFACTOR=%.2f NORMALIZATION=%.5f' % (scalmean,normfactor,nfactor) )
 #
         image.data*=nfactor            
-        image.weight*=nfactor2            
+        if image.weight is not None:
+            image.weight*=nfactor2
+        elif image.variance is not None:
+            image.variance /= nfactor2
 #
 #       Create keywords that reflect the median value of the flat on each amp.
 #

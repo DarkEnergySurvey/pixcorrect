@@ -24,7 +24,7 @@ class MiniCompare(PixCorrectImStep):
     step_name = config_section
     
     @classmethod
-    def __call__(cls, in_filename, ref_filename, out_filename, pc_filename, clip_sigma):
+    def __call__(cls, in_filename, ref_filename, out_filename):
         """
         Compare two compressed DES images, report size of deviations.
 
