@@ -6,6 +6,7 @@
 import ctypes
 import sys
 import logging
+
 from os import path
 from ConfigParser import SafeConfigParser, NoOptionError
 from argparse import ArgumentParser
@@ -340,3 +341,39 @@ class PixCorrectMultistep(PixCorrectDriver):
 
 
 # internal functions & classes
+
+#
+# RAG: new function to read a file (containing a list of files) and tender the results as a python list.
+# RAG: likely this should be moved to despymisc (have left it here for testing).
+#
+def filelist_to_list(input_file_list, column_used=0, delimeter=None, check_files_exist=True, append_missing_files=False):
+    """Create a list of file names from a file containing a list of file names.
+        :Parameters:
+            -`input_file_list`: the filename containing the list of files
+            -`column_used': column within file from which to draw name(s) (default=0)
+            -`delimeter': delimeter for parsing columns (default=None --> whitespace)
+            -`check_files_exist': function will check that files exist before adding to list (default=True)
+            -`append_missing_files': function appends files even if they are missing (default=False)
+        :Returns: list 
+    """
+
+    list_of_files=[]
+    try:
+        f_listfile=open(input_file_list,'r')
+    except:
+        raise IOError("File not found.  Missing input list %s " % input_file_list)
+    for line in f_listfile:
+        line=line.strip()
+        if (delimeter is None):
+            columns=line.split()
+        else:
+            columns=line.split(delimeter)
+        FileExists=True
+        if (check_files_exist):
+            if (not(path.isfile(columns[column_used]))):
+                FileExists=False
+        if ((append_missing_files)or(FileExists)):
+            list_of_files.append(columns[column_used])
+    f_listfile.close()
+    return(list_of_files)
+
