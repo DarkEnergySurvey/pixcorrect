@@ -10,7 +10,7 @@ from ConfigParser import SafeConfigParser, NoOptionError
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger
 from despyfits.DESImage import DESDataImage, DESImage
-from pixcorrect.PixCorrectDriver import PixCorrectImStep
+from pixcorrect.PixCorrectDriver import PixCorrectImStep, filelist_to_list
 from pixcorrect import skyinfo
 
 # Which section of the config file to read for this step
@@ -87,15 +87,18 @@ class SkyCombine(PixCorrectImStep):
             ccdranges = skyinfo.DEFAULT_CCDNUMS
         ccdnumlist = skyinfo.parse_ranges(ccdranges)
 
-        if config.has_option(cls.step_name, 'miniskyfiles'):
-            miniskyfiles = config.get(cls.step_name,'miniskyfiles')
+        if config.has_option(cls.step_name, 'miniskylist'):
+            miniskylist = config.get(cls.step_name,'miniskylist')
+            in_filenames=filelist_to_list(miniskylist)
         else:
-            miniskyfiles = skyinfo.DEFAULT_MINISKY_FILES
-
-        in_filenames = []
-        for i in ccdnumlist:
-#            in_filenames.append(miniskyfiles.format(i))
-            in_filenames.append(miniskyfiles % i)
+            if config.has_option(cls.step_name, 'miniskyfiles'):
+                miniskyfiles = config.get(cls.step_name,'miniskyfiles')
+            else:
+                miniskyfiles = skyinfo.DEFAULT_MINISKY_FILES
+            in_filenames = []
+            for i in ccdnumlist:
+#               in_filenames.append(miniskyfiles.format(i))
+                in_filenames.append(miniskyfiles % i)
         
         out_filename = config.get(cls.step_name, 'outfilename')
         logger.info('Sky combine output to %s' % out_filename)
@@ -111,6 +114,7 @@ class SkyCombine(PixCorrectImStep):
                             help='Range(s) of ccdnums to combine')
         parser.add_argument('--miniskyfiles',type=str,default=skyinfo.DEFAULT_MINISKY_FILES,
                             help='Filename template for single-chip minisky images')
+        parser.add_argument('--miniskylist',type=str,default=None, help='File containing a list of single-chip minisky images')
         parser.add_argument('--outfilename',type=str,
                             help='Filename for combined minisky FITS image')
         parser.add_argument('--mask_value', type=float, default=skyinfo.DEFAULT_MASK_VALUE,
