@@ -73,12 +73,21 @@ class ScaleFlat(PixCorrectImStep):
 
         :Parameters:
             - `image`: the DESImage on which to operate
-            - `normfactor`: the normalization factor (relative to SCALMEAN) to be used
+            - `normfactorfile`: file containing normalization factor (relative to SCALMEAN) to be used
             - `ampborder`:  the length (in pixels) to exclude around the periphery of each AMP to ignore when calculating statistics
 
         """
 
-        normfactor = config.getfloat(cls.step_name, 'normfactor')
+        normfactorfile = config.get(cls.step_name, 'normfactorfile')
+        try:
+            f_normfactorfile=open(normfactorfile,'r')
+        except:
+            raise IOError("File not found.  Missing normfactorfile %s " % normfactorfile)
+        for line in f_normfactorfile:
+            line=line.strip()
+            columns=line.split()
+            normfactor=float(columns[0])
+        f_normfactorfile.close()
         ampborder = config.getint(cls.step_name, 'ampborder')
 
         ret_code = cls.__call__(image, normfactor, ampborder)
@@ -89,8 +98,8 @@ class ScaleFlat(PixCorrectImStep):
     def add_step_args(cls, parser):
         """Add arguments specific application of the flat field correction
         """
-        parser.add_argument('--normfactor', nargs=1, default=None,
-                            help='Normalization (relative to SCALMEAN) to be used.')
+        parser.add_argument('--normfactorfile', nargs=1, default=None,
+                            help='File containing the normalization factor (relative to SCALMEAN) to be used.')
         parser.add_argument('--ampborder', type=int, default=50,
                             help='Length in pixels around periphery of each amp to ignore when calculating statistics (default=50)')
 
