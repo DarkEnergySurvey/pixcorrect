@@ -11,7 +11,7 @@ import numpy as np
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger, load_shlib
 from despyfits.DESImage import DESImage, DESImageCStruct, scan_fits_section, data_dtype
-from pixcorrect.PixCorrectDriver import PixCorrectStep
+from pixcorrect.PixCorrectDriver import PixCorrectStep, filelist_to_list
 from pixcorrect import decaminfo
 
 # Which section of the config file to read for this step
@@ -28,11 +28,11 @@ class FindFlatNormalization(PixCorrectStep):
     step_name = config_section
 
     @classmethod
-    def __call__(cls, inlist, ccdnorm, outnorm):
+    def __call__(cls, in_filenames, ccdnorm, outnorm):
         """Apply a flat field correction to an image
 
         :Parameters:
-            - `inlist`: list of input and output flat DESImage(s) to normalize
+            - `in_filenames`: list of input DESImage(s) to use to determine the normalization factor 
             - `ccdnorm`: -1-->normalize to median of all files, or to image with CCDNUM=ccdnorm 
             - `outnorm`: output file name to write the normalization factor
 
@@ -45,56 +45,42 @@ class FindFlatNormalization(PixCorrectStep):
         scalmean_list=[]
         normval=None
 #
-        try:
-            f1=open(inlist,'r')
-            for line in f1:
-                line=line.strip()
-                columns=line.split()
-                if (os.path.isfile(columns[0])):    
-                    tmp_dict={}
-                    tmp_dict['fname']=columns[0]
-#                    tmp_dict['oname']=columns[1]
-                    if (tmp_dict['fname'][-2:] == "fz"):
-                        sci_hdu=1 # for .fz
+        for filename in in_filenames:
+            if (os.path.isfile(filename)):    
+                tmp_dict={}
+                tmp_dict['fname']=filename
+                if (tmp_dict['fname'][-2:] == "fz"):
+                    sci_hdu=1 # for .fz
+                else:
+                    sci_hdu=0 # for .fits (or .gz)
+                temp_fits=fitsio.FITS(tmp_dict['fname'],'r')
+                temp_head=temp_fits[sci_hdu].read_header()
+#
+#               Get the CCD number
+#
+                try:
+                    tmp_dict['ccdnum']=int(temp_head['CCDNUM'])
+                except:
+                    if (ccdnorm < 1):
+                        tmp_dict['ccdnum']=-1
+                        pass
                     else:
-                        sci_hdu=0 # for .fits (or .gz)
-                    temp_fits=fitsio.FITS(tmp_dict['fname'],'r')
-                    temp_head=temp_fits[sci_hdu].read_header()
+                        print("Warning: image {:s} did not have a CCDNUM keyword!".format(tmp_dict['fname']))
+                        pass
 #
-#                   Get the CCD number
+#               Get the SCALMEAN value
 #
-                    try:
-                        tmp_dict['ccdnum']=int(temp_head['CCDNUM'])
-
-                    except:
-                        if (ccdnorm < 1):
-                            tmp_dict['ccdnum']=-1
-                            pass
-                        else:
-                            print("Warning: image {:s} did not have a CCDNUM keyword!".format(tmp_dict['fname']))
-                            pass
+                try:
+                    tmp_dict['scalmean']=float(temp_head['SCALMEAN'])
+                except:
+                    raise ValueError("Image %s did not have a SCALMEAN keyword. Aborting!" % tmp_dict['fname'])
 #
-#                   Get the SCALMEAN value
+#               Finished first header census
+#               Save file info and scalmean's to a list
 #
-                    try:
-                        tmp_dict['scalmean']=float(temp_head['SCALMEAN'])
-                    except:
-                        raise ValueError("Image %s did not have a SCALMEAN keyword. Aborting!" % tmp_dict['fname'])
-#
-#                   Finished first header census
-#                   Save file info and scalmean's to a list
-#
-                    norm_list.append(tmp_dict)
-                    scalmean_list.append(tmp_dict['scalmean'])
-                    temp_fits.close()
-            f1.close()
-        except:
-#
-#           Input file was not present.           
-#
-#            (type, value, trback)=sys.exc_info()
-#            print("{:s} {:s} {:s} \n".format(inlist,type,value))
-            raise IOError("File not found.  Missing input list %s " % inlist )
+                norm_list.append(tmp_dict)
+                scalmean_list.append(tmp_dict['scalmean'])
+                temp_fits.close()
 #
 #       All information is now present. Determine the value that will be used in normalization.
 #
@@ -134,10 +120,11 @@ class FindFlatNormalization(PixCorrectStep):
         """
 
         flat_inlist = config.get(cls.step_name, 'inlist')
+        in_filenames=filelist_to_list(flat_inlist)
         ccdnorm = config.getint(cls.step_name, 'ccdnorm')
         outnorm = config.get(cls.step_name, 'outnorm')
 
-        ret_code = cls.__call__(flat_inlist, ccdnorm, outnorm)
+        ret_code = cls.__call__(in_filenames, ccdnorm, outnorm)
 
         return ret_code
 
