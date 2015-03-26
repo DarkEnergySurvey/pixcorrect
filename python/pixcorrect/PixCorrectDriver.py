@@ -48,7 +48,8 @@ class PixCorrectDriver(object):
         """Generate a parser for a specific step
         """
         default_config = path.join(proddir, 'etc', cls.step_name+'.config')
-        default_out_config = path.join(cls.step_name+'-as_run'+'.config')
+        # default_out_config = path.join(cls.step_name+'-as_run'+'.config')
+        default_out_config = ""
 
         # Argument parser
         parser = ArgumentParser(description=cls.description)
@@ -58,7 +59,7 @@ class PixCorrectDriver(object):
                                  default=default_out_config,
                                  help="output config file")
         parser.add_argument('-l', '--log', 
-                                 default=cls.step_name+".log", 
+                                 default="", 
                                  help="the name of the logfile")
         parser.add_argument('-v', '--verbose', action="count", 
                                  help="be verbose")
