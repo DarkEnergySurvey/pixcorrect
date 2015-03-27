@@ -19,6 +19,8 @@ config_section = 'skycombine'
 class SkyCombine(PixCorrectImStep):
     description = "Combine sky images of all CCDs in one exposure"
     step_name = config_section
+    propagate = ['FILTER','DATE-OBS','EXPNUM','INSTRUME']
+    # Header keywords to copy from a single-chip image into the output image
     
     @classmethod
     def __call__(cls, in_filenames, out_filename, mask_value, invalid):
@@ -51,6 +53,8 @@ class SkyCombine(PixCorrectImStep):
             blocksize = small['BLOCKSIZ']
             if out is None:
                 out = skyinfo.MiniDecam(blocksize, mask_value, invalid)
+                out.copy_header_info(small, cls.propagate, require=False)
+                
             if blocksize != out.blocksize:
                 raise SkyError('Mismatched blocksizes for SkyCombine')
             out.fill(small.data,small['DETPOS'].strip())

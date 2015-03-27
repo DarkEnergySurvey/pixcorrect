@@ -20,6 +20,8 @@ config_section = 'skycompress'
 class SkyCompress(PixCorrectImStep):
     description = "Produce compressed image of sky background"
     step_name = config_section
+    propagate = ['FILTER','DATE-OBS','EXPNUM','CCDNUM','DETPOS','INSTRUME']
+    # Header keywords to copy from source image into compressed image
     
     @classmethod
     def __call__(cls, image, skyfilename, blocksize, bitmask):
@@ -55,11 +57,10 @@ class SkyCompress(PixCorrectImStep):
                                .reshape(ny,nx,blocksize*blocksize), axis=2)
             sky = np.ma.getdata(sky)
         
-        # Create HDU for output image, add some header info, and quit
+        # Create HDU for output image, add some header info, save output to file
         outimage = DESDataImage(sky)
         outimage['BLOCKSIZ'] = blocksize
-        outimage['DETPOS'] = image['DETPOS']
-        outimage['CCDNUM'] = image['CCDNUM']
+        outimage.copy_header_info(image, cls.propagate, require=False)
         ## ?? catch exception from write error below?
         outimage.save(skyfilename)
 

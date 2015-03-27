@@ -266,6 +266,24 @@ class MiniDecam(object):
         fitsio.write(filename, self.data, header=self.header, clobber=True)
         return
 
+    def copy_header_info(self, source, keywords, require=False):
+        """
+        Copy keyword/value pairs from source into header of this object.
+        :Parameters:
+            - `source`: source of key/value pairs with dict-like behavior
+            - `keywords`: iterable list of the keywords to copy from source
+            - `require`: if True, exception is generated if a desired keyword is
+                         absent from source.
+        """
+        for kw in keywords:
+            try:
+                value = source[kw]
+                self.header[kw] = value
+            except (ValueError,KeyError):
+                if require:
+                    raise KeyError('copy_header_info did not find required keyword ' + kw)
+        return
+    
     @classmethod
     def load(cls, filename):
         """
