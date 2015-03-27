@@ -44,6 +44,7 @@ class ScaleFlat(PixCorrectImStep):
         nfactor=scalmean/normfactor
         nfactor2=nfactor*nfactor
         logger.info('SCALMEAN=%.2f NORMFACTOR=%.2f NORMALIZATION=%.5f' % (scalmean,normfactor,nfactor) )
+        image['NORMFACT']=normfactor
 #
         image.data*=nfactor            
         if image.weight is not None:
