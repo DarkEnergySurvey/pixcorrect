@@ -106,7 +106,7 @@ class BFCorrect(PixCorrectImStep):
         change_mask[ignore] = False          # Don't mask what's already bad
         image.mask[change_mask] |= BADPIX_SUSPECT
 
-        image.write_key('BFCFIL', bffile, comment='Brighter/fatter correction file')
+        image.write_key('BFCFIL', path.basename(bffile), comment='Brighter/fatter correction file')
         
         ret_code = 0
         return ret_code

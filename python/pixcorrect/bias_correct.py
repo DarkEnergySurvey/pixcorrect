@@ -43,7 +43,7 @@ class BiasCorrect(PixCorrectImStep):
         if bias_im.sourcefile is None:
             image.write_key('BIASFIL', 'UNKNOWN', comment='Bias correction file')
         else:
-            image.write_key('BIASFIL', bias_im.sourcefile, comment='Bias correction file')
+            image.write_key('BIASFIL', path.basename(bias_im.sourcefile), comment='Bias correction file')
         ret_code = 0
         return ret_code
 

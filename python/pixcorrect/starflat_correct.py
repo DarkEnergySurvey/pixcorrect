@@ -35,7 +35,7 @@ class StarFlatCorrect(FlatCorrect):
         if flat_im.sourcefile is None:
             image.write_key('STARFIL', 'UNKNOWN', comment='Star flat correction file')
         else:
-            image.write_key('STARFIL', flat_im.sourcefile, comment='Star flat correction file')
+            image.write_key('STARFIL', path.basename(flat_im.sourcefile), comment='Star flat correction file')
 
         return ret_code
 

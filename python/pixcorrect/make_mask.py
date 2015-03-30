@@ -85,7 +85,7 @@ class MakeMask(PixCorrectImStep):
                 if bpm_im.sourcefile is None:
                     image.write_key('BPMFIL', 'UNKNOWN', comment='BPM file used to build mask')
                 else:
-                    image.write_key('BPMFIL', bpm_im.sourcefile, comment='BPM file used to build mask')
+                    image.write_key('BPMFIL', path.basename(bpm_im.sourcefile), comment='BPM file used to build mask')
                         
                 logger.debug('Finished applying BPM')
 

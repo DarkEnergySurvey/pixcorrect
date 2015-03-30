@@ -172,7 +172,7 @@ class FixColumns(PixCorrectImStep):
         if bpm.sourcefile is None:
             image.write_key('FIXCFIL', 'UNKNOWN', comment='BPM file for fixing columns')
         else:
-            image.write_key('FIXCFIL', bpm.sourcefile, comment='BPM file for fixing columns')
+            image.write_key('FIXCFIL', path.basename(bpm.sourcefile), comment='BPM file for fixing columns')
 
         logger.debug('Finished fixing columns')
 

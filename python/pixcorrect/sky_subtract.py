@@ -55,7 +55,7 @@ class SkySubtract(PixCorrectImStep):
             templates = skyinfo.SkyPC.load(pc_filename)
             sky = templates.sky(mini.coeffs)
             image.data -= sky
-            image.write_key('SKYSBFIL', pc_filename, comment = 'Sky subtraction template file')
+            image.write_key('SKYSBFIL', path.basename(pc_filename), comment = 'Sky subtraction template file')
             for i,c in enumerate(mini.coeffs):
                 image.write_key('SKYPC{:>02d}', c, comment='Sky template coefficient')
             logger.debug('Finished sky subtraction')

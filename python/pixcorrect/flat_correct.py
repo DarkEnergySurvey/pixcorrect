@@ -141,7 +141,7 @@ class FlatCorrect(PixCorrectImStep):
         if flat_im.sourcefile is None:
             image.write_key('FLATFIL', 'UNKNOWN', comment='Dome flat correction file')
         else:
-            image.write_key('FLATFIL', flat_im.sourcefile, comment='Dome flat correction file')
+            image.write_key('FLATFIL', path.basename(flat_im.sourcefile), comment='Dome flat correction file')
 
         return ret_code
             

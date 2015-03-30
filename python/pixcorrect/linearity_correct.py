@@ -90,7 +90,7 @@ class LinearityCorrect(PixCorrectImStep):
                                 image.data[secb]<=np.max(nonlinear))
         image.data[secb][in_range]=interpB(image.data[secb][in_range])
 
-        image.write_key('LINCFIL', fname_lincor, comment='Nonlinearity correction file')
+        image.write_key('LINCFIL', path.basename(fname_lincor), comment='Nonlinearity correction file')
         
         ret_code=0
         return ret_code
