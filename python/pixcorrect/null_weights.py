@@ -9,6 +9,7 @@ from despyfits.DESImage import DESImage
 from despyfits.maskbits import *
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import decaminfo
+import time
 
 # Which section of the config file to read for this step
 config_section = 'nullweight'
@@ -50,16 +51,30 @@ class NullWeights(PixCorrectImStep):
             weight = image.get_weight()
             kill = np.array( image.mask & bitmask, dtype=bool)
             weight[kill] = 0.
-#            image.header.write_history(time.asctime(time.localtime()) + \
-#                                       ' Null weights with mask 0x{:04X}'.format(bitmask))
+            image['HISTORY'] =time.asctime(time.localtime()) + \
+                              ' Null weights with mask 0x{:04X}'.format(bitmask)
             logger.debug('Finished nulling weight image')
             
         if resaturate:
             logger.info('Re-saturating pixels from mask bits')
             sat = np.array( image.mask & BADPIX_SATURATE, dtype=bool)
-            image.data[sat] = 1.01 * image['SATURATE']
-#            image.header.write_history(time.asctime(time.localtime()) + \
-#                                       ' Set saturated pixels to {:.0f}')
+            try:
+                saturation_level = image['SATURATE']
+            except (ValueError,KeyError):
+                # If there is no SATURATE, try taking max of amps
+                maxsat = 0.
+                try:
+                    for amp in decaminfo.amps:
+                        maxsat = max(maxsat, image['SATURAT'+amp])
+                except:
+                    logger.error('SATURATx header keywords not found')
+                    raise NullWeightsError('SATURATx header keywords not found')
+                saturation_level = maxsat
+                logger.warning('Taking SATURATE as max of single-amp SATURATx values')
+                
+            image.data[sat] = 1.01 * saturation_level
+            image['HISTORY'] = time.asctime(time.localtime()) + \
+                              ' Set saturated pixels to {:.0f}'.format(saturation_level)
             logger.debug('Finished nulling weight image')
 
 
