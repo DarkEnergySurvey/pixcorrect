@@ -27,6 +27,7 @@ from pixcorrect.null_weights import null_weights
 from pixcorrect.sky_compress import sky_compress
 from pixcorrect.sky_subtract import sky_subtract
 from pixcorrect.bf_correct import bf_correct
+from pixcorrect.add_weight import add_weight
 from pixcorrect import bfinfo
 from pixcorrect import skyinfo
 
@@ -125,7 +126,8 @@ class PixCorrectIm(PixCorrectMultistep):
             sky_fname = self.config.get('pixcorrect_im','sky')
             fit_fname = self.config.get('pixcorrect_im','skyfit')
             sky_subtract(self.sci, fit_fname, sky_fname, 'sky', self.flat)
-        self.clean_im('flat')
+            if not self.do_step('addweight'):
+                self.clean_im('flat')
         
         # Star flatten
         if self.do_step('starflat'):
@@ -136,6 +138,9 @@ class PixCorrectIm(PixCorrectMultistep):
         if self.do_step('resaturate'):
             null_weights(self.sci, bitmask=0, resaturate=True)
         
+        if self.do_step('addweight'):
+            add_weight(self.sci, self.flat)
+        self.clean_im('flat')
 
         out_fname = self.config.get('pixcorrect_im', 'out')
         self.sci.save(out_fname)
@@ -152,7 +157,7 @@ class PixCorrectIm(PixCorrectMultistep):
                             help='linearity correction Table')
         parser.add_argument('--bf', default=None, 
                             help='brighter/fatter correction Table')
-        parser.add_argument('--gain', action='store_true',
+        parser.add_argument('--gain', action='store_true', default=False,
                             help='convert ADU to e- using gain values in hdr')
         parser.add_argument('--bpm', default=None, 
                             help='bad pixel mask filename')
@@ -173,6 +178,8 @@ class PixCorrectIm(PixCorrectMultistep):
                             help='Star flat correction image')
         parser.add_argument('--resaturate', action='store_true',
                             help='Raise all saturated pixels above SATURATE value')
+        parser.add_argument('--addweight', action='store_true', default=False,
+                            help='Add a weight map to the image if none exists')
         return
 
 if __name__ == '__main__':
