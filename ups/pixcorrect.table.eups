@@ -1,7 +1,10 @@
-#this scipy sets up numpy 1.9.1+2 (consistent with despyfits pyfits 3.3+2, fitsio 0.9.6+1)
-#setupRequired(scipy 0.14.0+5)
-setupRequired(scipy 0.14.0+4)
-envPrepend(PATH, ${PRODUCT_DIR}/bin)
-envPrepend(PYTHONPATH, ${PRODUCT_DIR}/lib/python2.7/site-packages)
-envPrepend(PYTHONPATH, ${PRODUCT_DIR}/test/unittests)
-envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+setupRequired(scipy 0.14.0+5)
+setupRequired(despyfits 0.2.0+0)
+
+envAppend(PYTHONPATH, ${PRODUCT_DIR}/python)
+envAppend(PATH, ${PRODUCT_DIR}/bin)
+envAppend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+
+if (FLAVOR == DarwinX86 || FLAVOR == Darwin) {
+   envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+}
