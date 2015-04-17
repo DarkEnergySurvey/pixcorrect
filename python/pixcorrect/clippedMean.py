@@ -30,7 +30,7 @@ def clippedMean(a, nSigma, axis=None, sigma=None, sigmaFloor=None, maxSample=Non
         # Subsample the data in deriving clipping limits
         step = (dataLength-1)/maxSample + 1
         if axis==None:
-            sample = a.flatten[::step]
+            sample = a.flatten()[::step]
         else:
             s = []
             for i in range(0,axis):

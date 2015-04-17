@@ -24,7 +24,7 @@ class MiniCompare(PixCorrectImStep):
     step_name = config_section
     
     @classmethod
-    def __call__(cls, in_filename, ref_filename, out_filename):
+    def __call__(cls, in_filename, ref_filename, out_filename, edge=None):
         """
         Compare two compressed DES images, report size of deviations.
 
@@ -35,6 +35,7 @@ class MiniCompare(PixCorrectImStep):
                               normalizations.  The header of the output image will also contain keywords RMS
                               and WORST giving the rms and maximum fractional deviations, and a keyword FACTOR
                               giving the overall flux factor used to normalize them.
+            - 'edge':        number of compressed pixels along each CCD edge to ignore in calculating stats
         """
  
         logger.info('Comparing compressed image' + in_filename + " to reference " + ref_filename)
@@ -46,15 +47,23 @@ class MiniCompare(PixCorrectImStep):
             raise SkyError("Input and reference are not matching compressions of DECam")
 
         resid = indata.vector() / ref.vector()
-        factor = np.median(resid)
+        if edge is not None and edge>0:
+            stats = resid[indata.edges(edge).vector()==0]
+        else:
+            stats = np.array(resid)
+        factor = np.median(stats)
         resid /= factor
         resid -= 1.
-        rms = np.std(resid)
-        worst = np.max(np.abs(resid))
         indata.fill_from(resid)
+        stats /= factor
+        stats -= 1.
+        rms = np.std(stats)
+        worst = np.max(np.abs(stats))
         indata.header['FACTOR'] = factor
         indata.header['RMS'] = rms
         indata.header['WORST'] = worst
+        if edge is not None and edge>0:
+            indata.header['EDGE'] = edge
         indata.save(out_filename)
 
         logger.info('Normalization factor: %f' % factor)
@@ -78,8 +87,12 @@ class MiniCompare(PixCorrectImStep):
         in_filename = config.get(cls.step_name, 'in')
         out_filename = config.get(cls.step_name, 'out')
         ref_filename = config.get(cls.step_name, 'ref')
-
-        ret_code = cls.__call__(in_filename, ref_filename, out_filename)
+        if config.has_option(cls.step_name,'edge'):
+            edge = config.getint(cls.step_name,'edge')
+        else:
+            edge = None
+        
+        ret_code = cls.__call__(in_filename, ref_filename, out_filename,edge)
         return ret_code
 
     @classmethod
@@ -88,6 +101,8 @@ class MiniCompare(PixCorrectImStep):
         """
         parser.add_argument('-r','--ref',type=str,
                             help='Filename for reference compressed image')
+        parser.add_argument('--edge',type=int,
+                            help='Number of compressed pixels to ignore at CCD edges')
         return
 
     @classmethod

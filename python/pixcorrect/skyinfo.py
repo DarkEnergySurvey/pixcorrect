@@ -76,7 +76,7 @@ class MiniDecam(object):
     def __init__(self,
                  blocksize=DEFAULT_BLOCKSIZE,
                  mask_value=DEFAULT_MASK_VALUE,
-                 invalid=DEFAULT_IGNORE,
+                 invalid=DEFAULT_IGNORE.split(','),
                  header = None,
                  halfS7 = True):
         """
@@ -249,6 +249,38 @@ class MiniDecam(object):
         tmp[y+j, x+i] = True
         return np.where(tmp[self.mask])[0][0]
 
+    def edges(self,npix):
+        """
+        Return a new MiniDECam which has value of 1 in pixels that are
+        within npix of the edge of a CCD, and 0 in other valid pixels.
+
+        :Parameters:
+            - `npix`: width (in compressed pixels) of masked region at CCD edges
+        """
+
+        # Start by making the output MiniDecam
+        out = MiniDecam(blocksize=self.blocksize,
+                        mask_value=self.mask_value,
+                        invalid=self.invalid,
+                        halfS7 = self.halfS7)
+        # Then set all unmasked pixels to zero:
+        out.data[out.mask] = 0.
+
+        # Mark all edges:
+        for detpos in decaminfo.ccdnums.keys():
+            if detpos in self.invalid:
+                continue
+            y,x = self._corner_of(detpos)
+            yend = y + self._chip[0]
+            xend = x + self._chip[1]
+            if self.halfS7 and detpos=='S7':
+                xend = x + self._chip[1]/2
+            out.data[y:y+npix,      x:xend] = 1.
+            out.data[yend-npix:yend,x:xend] = 1.
+            out.data[y:yend,        x:x+npix] = 1.
+            out.data[y:yend,        xend-npix:xend] = 1.
+        return out
+
     def save(self,filename):
         """
         Save the mini-image to primary extension of a FITS file.
@@ -294,7 +326,7 @@ class MiniDecam(object):
         blocksize = hdr['BLOCKSIZ']
         mask_value = hdr['MASKVAL']
         halfS7 = 'HALFS7' in hdr.keys()
-        invalid = hdr['BADDET'].split(',')
+        invalid = [j.strip() for j in hdr['BADDET'].split(',')]
         out = cls(blocksize, mask_value, invalid, halfS7=halfS7, header=hdr)
         out.data = d
         return out
@@ -303,13 +335,26 @@ class MiniskyPC(object):
     """
     Class containing principle components of compressed sky images.
     """
-    def __init__(self, U):
+    def __init__(self,
+                 U,
+                 blocksize=DEFAULT_BLOCKSIZE,
+                 mask_value=DEFAULT_MASK_VALUE,
+                 invalid=DEFAULT_IGNORE.split(','),
+                 halfS7 = True):
         """
         :Parameters:
 
         `U`: 2d numpy array with shape (number of sky superpixels : number of pcs)
         """
         self.U = np.array(U)
+        self.blocksize = blocksize
+        self.mask_value = mask_value
+        self.invalid = set()
+        if invalid is not None:
+            for detpos in invalid:
+                self.invalid.add(detpos.strip())
+        self.halfS7 = halfS7
+        # ?? Check that dimensions of U match the size of a MiniSky with chosen params
         return
 
     @classmethod
@@ -317,14 +362,32 @@ class MiniskyPC(object):
         """
         Retrieve PC's from a FITS file, from primary or specified extension
         """
-        U = fitsio.read(filename,ext=ext)
-        return cls(U)
+        U,hdr = fitsio.read(filename,ext=ext, header=True)
+        blocksize = hdr['BLOCKSIZ']
+        mask_value = hdr['MASKVAL']
+        halfS7 = 'HALFS7' in hdr.keys()
+        invalid = [j.strip() for j in hdr['BADDET'].split(',')]
+        return cls(U, blocksize=blocksize, mask_value=mask_value, 
+                   invalid=invalid, halfS7=halfS7)
 
     def save(self,filename,ext='U', clobber=True, header=None):
         """
         Save the PCs into a FITS file of the given name, in specified extension
         Clobber=True by default; otherwise will always append a new extension to the file
         """
+        if header is None:
+            header = {}
+        header['BLOCKSIZ'] = self.blocksize
+        header['MASKVAL'] = self.mask_value
+        if self.halfS7:
+            header['HALFS7'] = ''
+        baddet = ''
+        for detpos in self.invalid:
+            if len(baddet)>0:
+                baddet = baddet + ','
+            baddet = baddet + detpos
+            print 'saving:',detpos,baddet
+        header['BADDET'] = baddet
         fitsio.write(filename, self.U, extname=ext,clobber=clobber, header=header)
         return
 
@@ -373,6 +436,20 @@ class MiniskyPC(object):
         mini.frac = 1.-float(n)/len(y)
         return
 
+    def get_pc(self, ipc):
+        """
+        Return a MiniDecam object that contains values of one of the principal components
+        """
+        if ipc<0 or ipc>=self.U.shape[1]:
+            raise SkyError('Request for non-existent PC #{:d}' \
+                           ' in MiniskyPC.get_pc'.format(ipc))
+        out = MiniDecam(blocksize=self.blocksize,
+                        mask_value = self.mask_value,
+                        invalid = self.invalid,
+                        halfS7 = self.halfS7)
+        out.fill_from(self.U[:,ipc])
+        return out
+    
 class SkyPC(object):
     """
     Full-resolution sky principal components (templates)
