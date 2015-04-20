@@ -70,6 +70,13 @@ ccdnums =  {'S29':  1,
             'N30':  61,
             'N31':  62}
 
+detpos_dict = {}
+"""
+A dictionary of detpos strings keyed on ccdnum values
+"""
+for k,v in ccdnums.items():
+    detpos_dict[v] = k
+
 """
 DECam CCD corners in pixel system where they are abutted into one big array
 The format here is (x,y), with 1-indexed positions, a la FITS.

@@ -386,7 +386,6 @@ class MiniskyPC(object):
             if len(baddet)>0:
                 baddet = baddet + ','
             baddet = baddet + detpos
-            print 'saving:',detpos,baddet
         header['BADDET'] = baddet
         fitsio.write(filename, self.U, extname=ext,clobber=clobber, header=header)
         return
@@ -456,37 +455,38 @@ class SkyPC(object):
     """
     # ??? Add ability to use templates that have been subsampled to save I/O time.
 
+    extname = 'TEMPLATES'
+    
     def __init__(self, d, detpos):
         """
         A sky pc is a 3d array with index 0 enumerating 2d principal components of sky.
         """
         self.d = np.array(d)
         self.detpos = detpos
+        self.header = {}
         return
 
     @classmethod
-    def load(cls, filename, ext=None):
+    def load(cls, filename):
         """
         Get a sky pc from the 3d array stored in named extension of FITS file
         """
-        d,h = fitsio.read(filename, ext=ext, header=True)
+        d,h = fitsio.read(filename, ext=cls.extname, header=True)
         if len(d.shape) != 3:
             raise SkyError("SkyTemplates.load did not find 3d array in " + filename)
         detpos = h['DETPOS']
         return cls(d,detpos)
 
-    def save(self, filename, d, ext=None, clobber=True, header=None):
+    def save(self, filename, clobber=True):
         """
         Save a sky pc as a FITS file under given extension name (or primary).
         If clobber=False, it is appended as a new extension.
         """
-        if h is None:
-            h = {}
-        else:
-            h = fitsio.FITSHDR(header)
-        h['DETPOS'] = self.detpos
-        fitsio.write(filename, self.d, extname=ext,clobber=clobber, header=h)
+        header['DETPOS']=self.detpos
+        header['CCDNUM']=decaminfo.detpos_dict[self.detpos]
+        fitsio.write(filename, self.d, extname=cls.extname, clobber=clobber)
         return
+
     def sky(self, coeffs):
         """
         Return a 2d array constructed from applying the specified coefficients
@@ -494,7 +494,9 @@ class SkyPC(object):
         if len(coeffs.shape)!=1 or self.d.shape[0] != len(coeffs):
             raise SkyError("Wrong number of coefficients for SkyTemplates.sky: " +
                            str(coeffs.shape))
+        # ?? or return np.tensordot(coeffs, self.d, axes=1)
         return np.sum(coeffs[:,np.newaxis,np.newaxis]*self.d, axis=0)
+    
 
 def linearFit(y, x, aStart, cost, dump=False):
     """

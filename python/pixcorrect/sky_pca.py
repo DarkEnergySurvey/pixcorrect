@@ -5,6 +5,8 @@ Perform robust PCA on ensemble of mini-sky images and save results to file.
 
 from os import path
 import numpy as np
+import fitsio
+
 from ConfigParser import SafeConfigParser, NoOptionError
 from argparse import ArgumentParser
 
@@ -54,7 +56,7 @@ def pca(m,nkeep=20):
 def clip(data,model,nsigma=4):
     diff = data - model
     avg,var,n = clippedMean(diff,nsigma,maxSample=1000000)
-    print 'Mean = ',avg,'+-',np.sqrt(var)
+    logger.info('Clipped mean and RMS sky residual: {:f} +- {:f}'.format(avg,np.sqrt(var)))
     diff = np.abs(diff-avg) > nsigma*np.sqrt(var)
     out = np.where(diff, model+avg, data)
     return out, np.count_nonzero(diff)
@@ -112,6 +114,7 @@ class SkyPCA(PixCorrectImStep):
  
         logger.info('Collecting images for PCA')
         mm = []  # will hold the data vectors for each exposure
+        expnums = []  # Collect the exposure numbers of exposures being used
         data_length = None
         blocksize = None
         for f in in_filenames:
@@ -127,7 +130,6 @@ class SkyPCA(PixCorrectImStep):
                 blocksize = mini.blocksize
                 mask_value = mini.mask_value
                 invalid = mini.invalid
-                print invalid, "read in"
                 halfS7 = mini.halfS7
             else:
                 if mini.blocksize != blocksize \
@@ -136,6 +138,7 @@ class SkyPCA(PixCorrectImStep):
                   logger.error('Mismatched minisky configuration in file ' + f)
                   raise SkyError('Mismatched minisky configuration in file ' + f)
             mm.append(np.array(v))
+            expnums.append(int(mini.header['EXPNUM']))
         m = np.vstack(mm).transpose()
         del mm
 
@@ -163,13 +166,8 @@ class SkyPCA(PixCorrectImStep):
 
         # New PCA excluding outliers
         logger.info("Start second PCA cycle")
-        U, S, v = process(m, npc)
-        
-        pc = skyinfo.MiniskyPC(U,
-                               blocksize=blocksize,
-                               mask_value=mask_value,
-                               invalid = invalid,
-                               halfS7 = halfS7)
+        U, S, v = process(m[:,use], npc)
+        pc.U = U
 
         pc.save(out_filename,clobber=True)
         
@@ -182,7 +180,14 @@ class SkyPCA(PixCorrectImStep):
             rms[i] = mini.rms
             frac[i] = mini.frac
 
-        # ??? Write V and a results table using fitsio
+        # Write V and a results table using fitsio (?? put into MiniskyPC defs)
+        fits = fitsio.FITS(out_filename,'rw')
+        fits.write( {'EXPNUM':np.array(expnums,dtype=np.int32),
+                     'COEFFS':V,
+                     'RMS':rms,
+                     'FRAC':frac,
+                     'USE':use},
+                    extname='EXPOSURES')
 
         # Create a one-line binary fits table to hold the coefficients
         logger.debug('Finished PCA')
