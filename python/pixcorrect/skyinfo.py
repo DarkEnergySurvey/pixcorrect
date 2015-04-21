@@ -13,7 +13,14 @@ DEFAULT_BLOCKSIZE = 128  # Decimation factor for sky images
 DEFAULT_SKYMASK = \
     maskbits.BADPIX_BPM | \
     maskbits.BADPIX_SATURATE | \
+    maskbits.BADPIX_INTERP | \
     maskbits.BADPIX_EDGE | \
+    maskbits.BADPIX_STAR | \
+    maskbits.BADPIX_CRAY | \
+    maskbits.BADPIX_TRAIL | \
+    maskbits.BADPIX_EDGEBLEED | \
+    maskbits.BADPIX_SSXTALK | \
+    maskbits.BADPIX_STREAK | \
     maskbits.BADPIX_BADAMP # bitmask for pixels to ignore in sky calculations
 DEFAULT_IGNORE = 'N30,S30'  # Chips to leave out of all sky calculations
 DEFAULT_MASK_VALUE = -1.  # Value assigned to unspecified pixels in compressed sky image
@@ -482,9 +489,9 @@ class SkyPC(object):
         Save a sky pc as a FITS file under given extension name (or primary).
         If clobber=False, it is appended as a new extension.
         """
-        header['DETPOS']=self.detpos
-        header['CCDNUM']=decaminfo.detpos_dict[self.detpos]
-        fitsio.write(filename, self.d, extname=cls.extname, clobber=clobber)
+        self.header['DETPOS']=self.detpos
+        self.header['CCDNUM']=decaminfo.ccdnums[self.detpos]
+        fitsio.write(filename, self.d, extname=self.extname, clobber=clobber, header=self.header)
         return
 
     def sky(self, coeffs):

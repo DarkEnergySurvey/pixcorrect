@@ -63,18 +63,18 @@ class SkyTemplate(PixCorrectImStep):
         if reject_rms is None:
             # If no RMS threshold is specified, use the same exposures
             # that were kept during PCA of compressed skies
-            use = np.array(tab['USE'])
+            use = np.array(pctab['USE'])
         else:
             # Choose our own threshold
-            use = tab['RMS'] < reject_rms
+            use = pctab['RMS'] < reject_rms
         nimg = np.count_nonzero(use)
 
         expnums = []
         vv = []
         for i in range(len(use)):
             if use[i]:
-                vv.append(tab['COEFFS'][i])
-                expnums.append(tab['EXPNUM'][i])
+                vv.append(pctab['COEFFS'][i])
+                expnums.append(pctab['EXPNUM'][i])
         V = np.vstack(vv)
         del vv
         
@@ -85,65 +85,71 @@ class SkyTemplate(PixCorrectImStep):
         npc = pc.U.shape[1]
         ySize = decaminfo.shape[0]
         xSize = decaminfo.shape[1]
-        if ccdnum==decaminfo.ccdnums['S7'] and pc.halfS7:
-            xSize = xSize/2
-            
-        # Decide how many rows of blocks we'll read from files at a time
-        bytes_per_row = 4 * xSize * pc.blockSize * nimg
-        xBlocks = xSize / pc.blockSize
-        yBlocks = int(np.floor( mem_use * (2**30) / bytes_per_row))
-        if yBlocks < 1:
-            logger.warning('Proceeding even though mem_use is not enough to store 1 row of blocks')
-            yBlocks = 1
-            
-        # Check that this CCD is part of the PCA
 
         # Create the output array
         out = np.zeros( (npc, ySize, xSize), dtype=np.float32)
 
+        # Only fill half of it for the bad amp:
+        if ccdnum==decaminfo.ccdnums['S7'] and pc.halfS7:
+            xSize = xSize/2
+            
+        # Decide how many rows of blocks we'll read from files at a time
+        bytes_per_row = 4 * xSize * pc.blocksize * nimg
+        xBlocks = xSize / pc.blocksize
+        yBlocks = min( int(np.floor( mem_use * (2**30) / bytes_per_row)),
+                       ySize / pc.blocksize)
+
+        if yBlocks < 1:
+            logger.warning('Proceeding even though mem_use is not enough to store 1 row of blocks')
+            yBlocks = 1
+            
         d = {'ccd':ccdnum}
 
         # Collect input data in chunks of yBlocks rows of blocks, then process one block at a time.
         for yStart in range(0,ySize,yBlocks*pc.blocksize):
             # Acquire the pixel data into a 3d array
             yStop = min(ySize,yStart+yBlocks*pc.blocksize)
-            logger.debug('Working on rows {:d} -- {:d}'.format(yStart,yStop))
+            logger.info('Working on rows {:d} -- {:d}'.format(yStart,yStop))
             data = np.zeros( (nimg, yStop-yStart, xSize), dtype=np.float32)
             data /= norms[:,np.newaxis,np.newaxis]  # Apply norms to be near zero
 
             for i,expnum in enumerate(expnums):
                 d['expnum']=expnum
                 filename = img_template.format(**d)
+                logger.debug('Getting pixels from ' + filename)
                 with fitsio.FITS(filename) as fits:
                     data[i,:,:] = fits['SCI'][yStart:yStop, :xSize]
                     
             # Now cycle through all blocks
             for jb in range(yBlocks):
                 for ib in range(xSize/pc.blocksize):
+                    logger.debug('Fitting for block ({:d},{:d})'.format(jb,ib))
                     # Use PCA of this block as starting guess at solution
                     index = mini.index_of(detpos,
-                                          yStart + jb*pc.blocksize,
-                                          ib*pc.blocksize)
+                                          yStart/pc.blocksize + jb,
+                                          ib)
                     guess = np.array(pc.U[index,:])
 
                     # We'll scale the guess in each pixel by the typical ratio
                     # of this pixel's data to the PCA model for the block:
                     model = np.dot(guess, V)
-                    ratio = data[:,jb*pc.blocksize:(jb+1)*pc.blocksize,
-                                 ib*pc.blocksize,(ib+1)*pc.blocksize] / model[:,np.newaxis,np.newaxis]
+                    ratio = data[:,
+                                 jb*pc.blocksize:(jb+1)*pc.blocksize,
+                                 ib*pc.blocksize:(ib+1)*pc.blocksize] / model[:,np.newaxis,np.newaxis]
                     scale, var, n = clippedMean(ratio,4,axis=0)
                     del ratio, n
                     
                     # Solve each pixel in the block:
                     for jp in range(pc.blocksize):
                         for ip in range(pc.blocksize):
-                            cost = ClippedCost(3*np.sqrt(var[jp,ip]))
+                            cost = skyinfo.ClippedCost(3*np.sqrt(var[jp,ip]))
                             # Execute and save the fit
-                            out[:, yStart+jb*pc.blocksize+jp, ib*pc.bloc] = \
+                            out[:, yStart+jb*pc.blocksize+jp, ib*pc.blocksize+ip] = \
                               skyinfo.linearFit(data[:, jb*pc.blocksize+jp, ib*pc.blocksize+ip],
                                                 V,
                                                 guess*scale[jp,ip],
                                                 cost)
+
             del data
 
         # ?? Should we make a mask for points that came back as zeros?
@@ -166,7 +172,7 @@ class SkyTemplate(PixCorrectImStep):
 
         """
 
-        infile = open(config.get(cls.step_name, 'infile'))
+        infile = config.get(cls.step_name, 'infile')
         out_filename = config.get(cls.step_name, 'outfilename')
         ccdnum = config.getint(cls.step_name, 'ccdnum')
         reject_rms = config.getfloat(cls.step_name, 'reject_rms')
