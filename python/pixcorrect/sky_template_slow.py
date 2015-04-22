@@ -111,7 +111,6 @@ class SkyTemplate(PixCorrectImStep):
             yStop = min(ySize,yStart+yBlocks*pc.blocksize)
             logger.info('Working on rows {:d} -- {:d}'.format(yStart,yStop))
             data = np.zeros( (nimg, yStop-yStart, xSize), dtype=np.float32)
-            data /= norms[:,np.newaxis,np.newaxis]  # Apply norms to be near zero
 
             for i,expnum in enumerate(expnums):
                 d['expnum']=expnum
@@ -119,11 +118,12 @@ class SkyTemplate(PixCorrectImStep):
                 logger.debug('Getting pixels from ' + filename)
                 with fitsio.FITS(filename) as fits:
                     data[i,:,:] = fits['SCI'][yStart:yStop, :xSize]
+            data /= norms[:,np.newaxis,np.newaxis]  # Apply norms to be near zero
                     
             # Now cycle through all blocks
-            for jb in range(yBlocks):
+            for jb in range((yStop-yStart)/pc.blocksize):
                 for ib in range(xSize/pc.blocksize):
-                    logger.debug('Fitting for block ({:d},{:d})'.format(jb,ib))
+                    logger.debug('Fitting for block ({:d},{:d})'.format(jb+yStart/pc.blocksize,ib))
                     # Use PCA of this block as starting guess at solution
                     index = mini.index_of(detpos,
                                           yStart/pc.blocksize + jb,
@@ -137,8 +137,10 @@ class SkyTemplate(PixCorrectImStep):
                                  jb*pc.blocksize:(jb+1)*pc.blocksize,
                                  ib*pc.blocksize:(ib+1)*pc.blocksize] / model[:,np.newaxis,np.newaxis]
                     scale, var, n = clippedMean(ratio,4,axis=0)
+                    logger.debug('Var, scale, ratio shapes: ' + str(var.shape) + \
+                                 ' ' + str(scale.shape) + ' ' + str(ratio.shape))
+
                     del ratio, n
-                    
                     # Solve each pixel in the block:
                     for jp in range(pc.blocksize):
                         for ip in range(pc.blocksize):
@@ -152,13 +154,10 @@ class SkyTemplate(PixCorrectImStep):
 
             del data
 
-        # ?? Should we make a mask for points that came back as zeros?
-
         # Save the template into the outfile
         spc = skyinfo.SkyPC(out,detpos)
         spc.save(out_filename, clobber=True)
         
-        # Create a one-line binary fits table to hold the coefficients
         logger.debug('Finished sky template')
         ret_code=0
         return ret_code
