@@ -10,7 +10,9 @@ import fitsio
 
 from ConfigParser import SafeConfigParser, NoOptionError
 from argparse import ArgumentParser
+import time
 
+from despyfits.DESImage import DESDataImage
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
@@ -26,7 +28,14 @@ class SkyTemplate(PixCorrectImStep):
     step_name = config_section
     
     @classmethod
-    def __call__(cls, in_filename, out_filename, ccdnum, img_template, reject_rms, mem_use, bitmask):
+    def __call__(cls,
+                 in_filename, out_filename,
+                 ccdnum,
+                 img_template,
+                 good_filename = None,
+                 reject_rms = None,
+                 mem_use = 8.,
+                 bitmask = skyinfo.DEFAULT_SKYMASK):
         """
         Create full-resolution sky templates based on previous PCA.
         Does this pixel by pixel, via robust fitting of the data in the input
@@ -39,11 +48,14 @@ class SkyTemplate(PixCorrectImStep):
             - `out_filename`: filename for the output template
             - `ccdnum`: which CCD to produce templates for
             - `img_template`: string that can be formatted with the expnum to yield
-                              filename of the DESImage holding the full-res data.
+                            filename of the DESImage holding the full-res data.
+            - `good_filename`: Name of a FITS file in which to save number of images
+                            contributing to each pixel's fit.  No output if None.  
             - `reject_rms`: Exclude exposures with fractional RMS residual sky above this.
                             If this is None, just uses the exposures that PCA used.
-            - `mem_use:` Number of GB to target for memory usage
-            - `bitmask:` Applied to MASK extension of images for initial bad-pixel exclusion
+            - `mem_use:` Number of GB to target for memory usage (Default = 8)
+            - `bitmask:` Applied to MASK extension of images for initial bad-pixel
+                            exclusion.
         """
  
         logger.info('Starting sky template construction')
@@ -61,7 +73,7 @@ class SkyTemplate(PixCorrectImStep):
             mini.index_of(detpos,1,1)
         except SkyError:
             logger.error('Template requested for CCDNUM not included in PCA')
-            return(1)
+            return 1
 
         # Select exposures we'll use
         if reject_rms is None:
@@ -98,7 +110,8 @@ class SkyTemplate(PixCorrectImStep):
         out = np.zeros( (npc, ySize, xSize), dtype=np.float32)
 
         # And an array to hold the number of exposures used at each pixel:
-        ngood = np.zeros( (ySize, xSize), dtype=np.int16)
+        if good_filename is not None:
+            ngood = np.zeros( (ySize, xSize), dtype=np.int16)
 
         # Only fill half of it for the bad amp:
         if ccdnum==decaminfo.ccdnums['S7'] and pc.halfS7:
@@ -108,7 +121,7 @@ class SkyTemplate(PixCorrectImStep):
         # Decide how many rows of blocks we'll read from files at a time
         bytes_per_row = 4 * xSize * pc.blocksize * nimg
         xBlocks = xSize / pc.blocksize
-        yBlocks = min( int(np.floor( mem_use * (2**30) / bytes_per_row)),
+        yBlocks = min( int(np.floor( 0.8* mem_use * (2**30) / bytes_per_row)),
                        ySize / pc.blocksize)
 
         if yBlocks < 1:
@@ -143,7 +156,7 @@ class SkyTemplate(PixCorrectImStep):
                         mask[i,:,:] = (m & bitmask)==0
                         del m
                         
-            data /= norms[:,np.newaxis,np.newaxis]  # Apply norms to be near zero
+            data /= norms[:,np.newaxis,np.newaxis]  # Apply norms to be near unity
                     
             # Now cycle through all blocks
             for jb in range((yStop-yStart)/pc.blocksize):
@@ -208,21 +221,33 @@ class SkyTemplate(PixCorrectImStep):
                     out[:,
                         yStart+jb*pc.blocksize:yStart+(jb+1)*pc.blocksize,
                         ib*pc.blocksize:(ib+1)*pc.blocksize] = soln
-                    # Gin up a masked array because it allows counting along an axis
-                    nblock = np.ma.count_masked(np.ma.masked_array(np.zeros_like(good),good),axis=0)
-                    nblock.resize(pc.blocksize,pc.blocksize)
-                    ngood[yStart+jb*pc.blocksize:yStart+(jb+1)*pc.blocksize,
-                          ib*pc.blocksize:(ib+1)*pc.blocksize] = nblock
-                    del nblock, resid, model, good, dsoln, block
+                    if good_filename is not None:
+                        # Gin up a masked array because it allows counting along an axis
+                        nblock = np.ma.count_masked(\
+                            np.ma.masked_array(np.zeros_like(good),good),axis=0)
+                        nblock.resize(pc.blocksize,pc.blocksize)
+                        ngood[yStart+jb*pc.blocksize:yStart+(jb+1)*pc.blocksize,
+                              ib*pc.blocksize:(ib+1)*pc.blocksize] = nblock
+                        del nblock
+                    del resid, model, good, dsoln, block
             del data
 
         # Save the template into the outfile
         spc = skyinfo.SkyPC(out,detpos)
+        # Add a history line about creation here
+        spc.header['HISTORY'] = time.asctime(time.localtime()) + \
+           ' Build sky template from PCA file {:s}'.format(path.basename(in_filename))
         spc.save(out_filename, clobber=True)
-        # Save the number of good sky pixels in another extension
-        with fitsio.FITS(out_filename,'rw') as fits:
-            fits.write(ngood, extname='NGOOD')
+        del out
         
+        # Save the number of good sky pixels in another extension
+        if good_filename is not None:
+            gimg = DESDataImage(ngood, header={'DETPOS':detpos,
+                                               'CCDNUM':ccdnum})
+            logger.debug('Writing ngood to ' + good_filename)
+            gimg.save(good_filename)
+            del gimg, ngood
+            
         logger.debug('Finished sky template')
         ret_code=0
         return ret_code
@@ -246,6 +271,10 @@ class SkyTemplate(PixCorrectImStep):
             reject_rms = config.getfloat(cls.step_name,'reject_rms')
         else:
             reject_rms = None
+        if config.has_option(cls.step_name,'good_filename'):
+            good_filename = config.get(cls.step_name,'good_filename')
+        else:
+            good_filename = None
 
         ret_code = cls.__call__(in_filename=infile,
                                 out_filename=out_filename,
@@ -253,6 +282,7 @@ class SkyTemplate(PixCorrectImStep):
                                 img_template=image_template,
                                 reject_rms=reject_rms,
                                 mem_use=mem_use,
+                                good_filename=good_filename,
                                 bitmask = skyinfo.DEFAULT_SKYMASK)
         return ret_code
 
@@ -286,6 +316,8 @@ class SkyTemplate(PixCorrectImStep):
                             help='String which yields filenames of individual FITS images when formatted')
         parser.add_argument('--reject_rms', type=float,
                             help='Reject exposures with RMS resids from PCA fit above this')
+        parser.add_argument('--good_filename', type=str,
+                            help='FITS file to hold counts of valid exposures per pixel')
         parser.add_argument('--mem_use', type=float, default=8.,
                             help='Number of GB of memory usage to target')
         return parser

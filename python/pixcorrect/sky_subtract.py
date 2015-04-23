@@ -53,6 +53,11 @@ class SkySubtract(PixCorrectImStep):
             logger.info('Subtracting sky')
             mini = skyinfo.MiniDecam.load(fit_filename)
             templates = skyinfo.SkyPC.load(pc_filename)
+            if templates.detpos != image['DETPOS']:
+                # Quit if we don't have the right CCD to subtract
+                logger.error('Image DETPOS {:s} does not match sky template {:s}'.format(\
+                    templates.detpos,image['DETPOS']))
+                return 1
             sky = templates.sky(mini.coeffs)
             image.data -= sky
             image.write_key('SKYSBFIL', path.basename(pc_filename), comment = 'Sky subtraction template file')
