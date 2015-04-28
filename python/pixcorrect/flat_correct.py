@@ -6,7 +6,8 @@ from os import path
 import numpy as np
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger, do_once, items_must_match
-from despyfits.DESImage import DESImage
+#from despyfits.DESImage import DESImage
+from despyfits.DESImage import DESImage, section2slice 
 from despyfits import maskbits
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import decaminfo
@@ -89,7 +90,8 @@ class FlatCorrect(PixCorrectImStep):
                 scale = flat_im[scalekw]
             else:
                 # Figure it out ourselves from median of a subsample:
-                sec = DESImage.section2slice(image['DATASEC'+amp])
+#                sec = DESImage.section2slice(image['DATASEC'+amp])
+                sec = section2slice(image['DATASEC'+amp])
                 scale = np.median(flat_im.data[sec][::4,::4])
             scales.append(scale)
             if scalekw in image.header.keys():
