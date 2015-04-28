@@ -78,6 +78,7 @@ class MiniDecam(object):
     `rms` property is fractional RMS residuals to fit.  Uses keyword 'SKYRMS'
 
     `frac` property is fraction of outliers in sky fit.  Uses keyword 'SKYFRAC'
+
     """
 
     def __init__(self,
@@ -347,6 +348,7 @@ class MiniskyPC(object):
                  blocksize=DEFAULT_BLOCKSIZE,
                  mask_value=DEFAULT_MASK_VALUE,
                  invalid=DEFAULT_IGNORE.split(','),
+                 header = None,
                  halfS7 = True):
         """
         :Parameters:
@@ -360,41 +362,40 @@ class MiniskyPC(object):
         if invalid is not None:
             for detpos in invalid:
                 self.invalid.add(detpos.strip())
+        self.header = fitsio.FITSHDR(header)
         self.halfS7 = halfS7
         # ?? Check that dimensions of U match the size of a MiniSky with chosen params
         return
 
     @classmethod
-    def load(cls,filename,ext='U'):
+    def load(cls,filename):
         """
         Retrieve PC's from a FITS file, from primary or specified extension
         """
-        U,hdr = fitsio.read(filename,ext=ext, header=True)
+        U,hdr = fitsio.read(filename,ext='U', header=True)
         blocksize = hdr['BLOCKSIZ']
         mask_value = hdr['MASKVAL']
         halfS7 = 'HALFS7' in hdr.keys()
         invalid = [j.strip() for j in hdr['BADDET'].split(',')]
         return cls(U, blocksize=blocksize, mask_value=mask_value, 
-                   invalid=invalid, halfS7=halfS7)
+                   invalid=invalid, halfS7=halfS7, header=hdr)
 
-    def save(self,filename,ext='U', clobber=True, header=None):
+    def save(self,filename):
         """
         Save the PCs into a FITS file of the given name, in specified extension
         Clobber=True by default; otherwise will always append a new extension to the file
         """
-        if header is None:
-            header = {}
-        header['BLOCKSIZ'] = self.blocksize
-        header['MASKVAL'] = self.mask_value
+        self.header['BLOCKSIZ'] = self.blocksize
+        self.header['MASKVAL'] = self.mask_value
         if self.halfS7:
-            header['HALFS7'] = ''
+            self.header['HALFS7'] = ''
         baddet = ''
         for detpos in self.invalid:
             if len(baddet)>0:
                 baddet = baddet + ','
             baddet = baddet + detpos
-        header['BADDET'] = baddet
-        fitsio.write(filename, self.U, extname=ext,clobber=clobber, header=header)
+        self.header['BADDET'] = baddet
+        fitsio.write(filename, self.U, extname='U', clobber=True, header=self.header)
         return
 
     def fit(self, mini, clip_sigma=3.):
@@ -464,13 +465,13 @@ class SkyPC(object):
 
     extname = 'TEMPLATES'
     
-    def __init__(self, d, detpos):
+    def __init__(self, d, detpos, header=None):
         """
         A sky pc is a 3d array with index 0 enumerating 2d principal components of sky.
         """
         self.d = np.array(d)
         self.detpos = detpos
-        self.header = {}
+        self.header = fitsio.FITSHDR(header)
         return
 
     @classmethod
@@ -482,16 +483,16 @@ class SkyPC(object):
         if len(d.shape) != 3:
             raise SkyError("SkyTemplates.load did not find 3d array in " + filename)
         detpos = h['DETPOS']
-        return cls(d,detpos)
+        return cls(d,detpos,header=h)
 
-    def save(self, filename, clobber=True):
+    def save(self, filename):
         """
         Save a sky pc as a FITS file under given extension name (or primary).
         If clobber=False, it is appended as a new extension.
         """
         self.header['DETPOS']=self.detpos
         self.header['CCDNUM']=decaminfo.ccdnums[self.detpos]
-        fitsio.write(filename, self.d, extname=self.extname, clobber=clobber, header=self.header)
+        fitsio.write(filename, self.d, extname=self.extname, clobber=True, header=self.header)
         return
 
     def sky(self, coeffs):
@@ -504,6 +505,35 @@ class SkyPC(object):
         # ?? or return np.tensordot(coeffs, self.d, axes=1)
         return np.sum(coeffs[:,np.newaxis,np.newaxis]*self.d, axis=0)
     
+    @classmethod
+    def get_exposures(cls, filename):
+        """
+        Get table of information on individual exposures from the named SkyPC file
+        """
+        tab1 = fitsio.read(filename,ext='EXPOSURES')
+        tab = {'EXPNUM':tab1['EXPNUM'],
+               'COEFFS':tab1['COEFFS'],
+               'RMS':tab1['RMS'],
+               'FRAC':tab1['FRAC'],
+               'USE': (tab1['USE']!=0)} # *** Need to convert byte to bool for fitsio bug
+        return tab
+
+    @classmethod
+    def save_exposures(cls, filename, expnums, coeffs, rms, frac, use):
+        """
+        Add an extension to a SkyPC file that contains binary table of PCA fitting
+        results for exposures.
+        """
+        # *** Note saving the USE array in bytes since fitsio has a bug reading bools
+        tab = {'EXPNUM':np.array(expnums,dtype=np.int32),
+                'COEFFS':coeffs,
+                'RMS':rms,
+                'FRAC':frac,
+                'USE':np.array(use,dtype=np.int8)}
+            
+        with fitsio.FITS(filename,'rw') as fits:
+            fits.write(tab, extname='EXPOSURES')
+        return
 
 def linearFit(y, x, aStart, cost, dump=False):
     """

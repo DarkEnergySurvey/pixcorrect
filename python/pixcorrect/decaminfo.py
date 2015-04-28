@@ -1,11 +1,42 @@
 """
 Compendium of information on the geometry of the DECam CCDs
 """
+import calendar
 
 amps = ('A','B') # Possible amplifier choices
 
 shape = (4096,2048)  # Shape of the science array, in numpy format
-        
+
+def get_band(filter):
+    # Function to return a short BAND string given the FILTER string
+    band = filter.strip()[0]
+    if band=='V':
+        band = 'VR'
+    elif band not in ('u','g','r','i','z','Y'):
+        band = 'X'
+    return band
+
+def get_nite(date_obs):
+    # Function to return standard NITE string from date-obs string
+    # date_obs = 'YYYY-MM-DDTHH:MM:SS.S'
+    v = date_obs.split(':')
+    hh = int(v[0].split('-')[2][-2:])
+    if hh > 14:
+        nite = v[0][:-3].replace('-','')   
+    else:
+        y = int(v[0][0:4])
+        m = int(v[0][5:7])
+        d = int(v[0][8:10])-1
+        if d==0:
+            m = m - 1
+            if m==0:
+                m = 12
+                y = y - 1
+            d = calendar.monthrange(y,m)[1]
+        nite = str(y).zfill(4)+str(m).zfill(2)+str(d).zfill(2)
+    return nite    
+
+
 # ccdnums is a dictionary mapping the DETPOS values into their CCDNUM values
 ccdnums =  {'S29':  1,
             'S30':  2,

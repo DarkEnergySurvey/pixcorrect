@@ -32,6 +32,13 @@ class LibraryException(Exception):
     def __init__(self, value):
         self.value = value
 
+class MismatchError(Exception):
+    # Exception class for mismatch between properties of images
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
 # interface functions
 
 def load_shlib(shlib_name):
@@ -108,3 +115,32 @@ def no_lib_error(func_args=None, func_kwargs=None, func_result=None):
 
 # classes
 # internal functions & classes
+
+def items_must_match(d1,d2,*args):
+    """
+    Check that items in 2 headers (or any indexable objects) d1 and d2 are equal.
+    Each of the args is used as an index.  Logs an error and throws an exception
+    if there is a mismatch.  String values are stripped of whitespace before comparison
+    to avoid common issue of extra space on FITS values.
+    """
+    for k in args:
+        try:
+            v1 = d1[k]
+            v2 = d2[k]
+        except:
+            msg = 'Items missing that must match for key [{:s}]'.format(k)
+            logging.error(msg)
+            raise MismatchError(msg)
+        if type(v1)==str:
+            v1 = v1.strip()
+        if type(v2)==str:
+            v2 = v2.strip()
+        if not v1==v2:
+            msg = 'Mismatch for key [{:s}]: '.format(k) + str(v1) + ' vs ' + str(v2)
+            print msg ###
+            logging.error(msg)
+            raise MismatchError(msg)
+    return
+
+            
+            

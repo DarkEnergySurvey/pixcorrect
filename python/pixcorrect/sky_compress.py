@@ -20,7 +20,8 @@ config_section = 'skycompress'
 class SkyCompress(PixCorrectImStep):
     description = "Produce compressed image of sky background"
     step_name = config_section
-    propagate = ['FILTER','DATE-OBS','EXPNUM','CCDNUM','DETPOS','INSTRUME']
+    propagate = ['FILTER','DATE-OBS','EXPNUM','CCDNUM','DETPOS','INSTRUME',
+                 'BAND','NITE']
     # Header keywords to copy from source image into compressed image
     
     @classmethod

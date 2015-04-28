@@ -5,7 +5,7 @@
 from os import path
 import numpy as np
 import time
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, items_must_match
 from despyfits.DESImage import DESImage, DESBPMImage, section2slice
 from despyfits.maskbits import *
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
@@ -50,6 +50,11 @@ class MakeMask(PixCorrectImStep):
                 logger.warning('Skipping BPM application ('+kw+' already set)')
             else:
                 logger.info('Applying BPM')
+                try:
+                    items_must_match(image, bpm_im, 'CCDNUM')
+                except:
+                    return 1
+
                 # Mark the unusable data
                 bitmask = BPMDEF_FLAT_MIN | \
                     BPMDEF_FLAT_MAX | \

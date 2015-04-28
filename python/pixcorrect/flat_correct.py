@@ -5,7 +5,7 @@
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger, do_once
+from pixcorrect.corr_util import logger, do_once, items_must_match
 from despyfits.DESImage import DESImage
 from despyfits import maskbits
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
@@ -30,7 +30,18 @@ class FlatCorrect(PixCorrectImStep):
         Applies the correction "in place"
         """
         logger.info('Applying Flat')
-
+        
+        # Check that flat and data are from same CCD and filter
+        try:
+            image['BAND']
+        except:
+            # Give image a BAND from its FILTER if it's not there
+            image['BAND'] = decaminfo.get_band(image['FILTER'])
+        try:
+            items_must_match(image, flat_im, 'CCDNUM','BAND')
+        except:
+            return 1
+        
         # Apply flat to the data
         image.data /= flat_im.data
 

@@ -11,7 +11,7 @@ import numpy as np
 from ConfigParser import SafeConfigParser, NoOptionError
 
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger, do_once
+from pixcorrect.corr_util import logger, do_once, items_must_match
 from despyfits.DESImage import DESDataImage, DESImage, weight_dtype, section2slice
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import skyinfo
@@ -58,11 +58,21 @@ class SkySubtract(PixCorrectImStep):
                 logger.error('Image DETPOS {:s} does not match sky template {:s}'.format(\
                     templates.detpos,image['DETPOS']))
                 return 1
+            try:
+                image['BAND']
+            except:
+                image['BAND'] = decaminfo.get_band(image['FILTER'])
+            try:
+                items_must_match(image,mini.header,'BAND','EXPNUM')
+                items_must_match(image,templates.header,'BAND')
+                # ??? Could check that template and image use same dome flat
+            except:
+                return 1
             sky = templates.sky(mini.coeffs)
             image.data -= sky
             image.write_key('SKYSBFIL', path.basename(pc_filename), comment = 'Sky subtraction template file')
             for i,c in enumerate(mini.coeffs):
-                image.write_key('SKYPC{:>02d}', c, comment='Sky template coefficient')
+                image.write_key('SKYPC{:>02d}'.format(i), c, comment='Sky template coefficient')
             logger.debug('Finished sky subtraction')
         else:
             sky = None

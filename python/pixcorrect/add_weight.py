@@ -6,7 +6,7 @@ import ctypes
 from os import path
 import numpy as np
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, items_must_match
 from despyfits.DESImage import DESImage, DESImageCStruct, weight_dtype, section2slice
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import decaminfo
@@ -32,6 +32,11 @@ class AddWeight(PixCorrectImStep):
 
         if image.weight is None:
             image.init_weight()
+            # Check that dome and data are from same CCD
+            try:
+                items_must_match(image, dome, 'CCDNUM')
+            except:
+                return 1
             # Transform the sky image into a variance image
             data=image.data
             var = np.array(data, dtype = weight_dtype)
@@ -66,6 +71,9 @@ class AddWeight(PixCorrectImStep):
         """
         logger.info('Weight will be added to %s' % image)
     
+        flat_fname = config.get(cls.step_name, 'flat')
+        logger.info('Reading flat correction from %s'% flat_fname)
+        flat = DESImage.load(flat_fname)
         ret_code = cls.__call__(image,flat)
         return ret_code
 
@@ -73,6 +81,8 @@ class AddWeight(PixCorrectImStep):
     def add_step_args(cls, parser):
         """Add arguments specific application of the gain correction
         """
+        parser.add_argument('--flat', default=None,
+                            help='Dome flat correction image')
 
 add_weight = AddWeight()
 

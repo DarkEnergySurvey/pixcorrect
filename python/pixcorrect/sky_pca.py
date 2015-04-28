@@ -11,8 +11,8 @@ from ConfigParser import SafeConfigParser, NoOptionError
 from argparse import ArgumentParser
 
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
-from pixcorrect.PixCorrectDriver import PixCorrectImStep
+from pixcorrect.corr_util import logger, items_must_match
+from pixcorrect.PixCorrectDriver import PixCorrectDriver
 from pixcorrect import skyinfo
 from pixcorrect.clippedMean import clippedMean
 
@@ -96,7 +96,7 @@ def process(m, npc):
     V *= norms
     return U, V, s
 
-class SkyPCA(PixCorrectImStep):
+class SkyPCA(PixCorrectDriver):
     description = "Perform robust PCA of a collection of MiniDecam images"
     step_name = config_section
     
@@ -117,6 +117,7 @@ class SkyPCA(PixCorrectImStep):
         expnums = []  # Collect the exposure numbers of exposures being used
         data_length = None
         blocksize = None
+        hdr = {}
         for f in in_filenames:
             mini = skyinfo.MiniDecam.load(f)
             v = mini.vector()
@@ -131,12 +132,22 @@ class SkyPCA(PixCorrectImStep):
                 mask_value = mini.mask_value
                 invalid = mini.invalid
                 halfS7 = mini.halfS7
+                hdr['BAND'] = mini.header['BAND']
+                hdr['MINNITE'] = mini.header['NITE']
+                hdr['MAXNITE'] = mini.header['NITE']
             else:
                 if mini.blocksize != blocksize \
                   or mini.invalid!=invalid \
                   or mini.halfS7!=halfS7:
                   logger.error('Mismatched minisky configuration in file ' + f)
                   raise SkyError('Mismatched minisky configuration in file ' + f)
+                try:
+                    # Die if there is a filter mismatch among exposures
+                    items_must_match(hdr,mini.header,'BAND')
+                except:
+                    return 1
+                hdr['MINNITE'] = min(hdr['MINNITE'],mini.header['NITE'])
+                hdr['MAXNITE'] = max(hdr['MAXNITE'],mini.header['NITE'])
             mm.append(np.array(v))
             expnums.append(int(mini.header['EXPNUM']))
         m = np.vstack(mm).transpose()
@@ -149,6 +160,7 @@ class SkyPCA(PixCorrectImStep):
                                blocksize=blocksize,
                                mask_value=mask_value,
                                invalid = invalid,
+                               header = hdr,
                                halfS7 = halfS7)
 
         # Refit each exposure to this PCA,
@@ -169,7 +181,7 @@ class SkyPCA(PixCorrectImStep):
         U, S, v = process(m[:,use], npc)
         pc.U = U
 
-        pc.save(out_filename,clobber=True)
+        pc.save(out_filename)
         
         # Recollect statistics and save
         logger.info("Collecting statistics")
@@ -180,14 +192,9 @@ class SkyPCA(PixCorrectImStep):
             rms[i] = mini.rms
             frac[i] = mini.frac
 
-        # Write V and a results table using fitsio (?? put into MiniskyPC defs)
-        fits = fitsio.FITS(out_filename,'rw')
-        fits.write( {'EXPNUM':np.array(expnums,dtype=np.int32),
-                     'COEFFS':V,
-                     'RMS':rms,
-                     'FRAC':frac,
-                     'USE':use},
-                    extname='EXPOSURES')
+        # Write V and a results table
+        skyinfo.SkyPC.save_exposures(out_filename,
+                                     expnums, V, rms, frac, use)
 
         # Create a one-line binary fits table to hold the coefficients
         logger.debug('Finished PCA')
@@ -215,25 +222,7 @@ class SkyPCA(PixCorrectImStep):
         return ret_code
 
     @classmethod
-    def parser(cls):
-        """Generate a parser
-        """
-        default_config = path.join(proddir, 'etc', cls.step_name+'.config')
-        default_out_config = path.join(cls.step_name+'-as_run'+'.config')
-
-        # Argument parser
-        parser = ArgumentParser(description=cls.description)
-        parser.add_argument("config", default=default_config, nargs="?",
-                            help="Configuration file filename")
-        parser.add_argument('-s', '--saveconfig', 
-                                 default=default_out_config,
-                                 help="output config file")
-        parser.add_argument('-l', '--log', 
-                                 default=cls.step_name+".log", 
-                                 help="the name of the logfile")
-        parser.add_argument('-v', '--verbose', action="count", 
-                                 help="be verbose")
-
+    def add_step_args(cls,parser):
         parser.add_argument('-i','--inlist',type=str,
                             help='File holding names of all input minisky files')
         parser.add_argument('-o','--outfilename',type=str,
@@ -242,8 +231,6 @@ class SkyPCA(PixCorrectImStep):
                             help='Number of principal components to retain')
         parser.add_argument('--reject_rms', type=float, default=0.005,
                             help='Reject exposures with RMS resids from PCA fit above this')
-        return parser
-
 
 sky_pca = SkyPCA()
 

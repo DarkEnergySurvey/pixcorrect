@@ -14,8 +14,8 @@ import time
 
 from despyfits.DESImage import DESDataImage
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
-from pixcorrect.PixCorrectDriver import PixCorrectImStep
+from pixcorrect.corr_util import logger,items_must_match
+from pixcorrect.PixCorrectDriver import PixCorrectDriver
 from pixcorrect import skyinfo
 from pixcorrect.clippedMean import clippedMean
 from pixcorrect import decaminfo
@@ -23,7 +23,7 @@ from pixcorrect import decaminfo
 # Which section of the config file to read for this step
 config_section = 'skytemplate'
 
-class SkyTemplate(PixCorrectImStep):
+class SkyTemplate(PixCorrectDriver):
     description = "Create full-resolution sky templates based on previous PCA"
     step_name = config_section
     
@@ -62,8 +62,7 @@ class SkyTemplate(PixCorrectImStep):
 
         # Acquire PCA information, including the table of info on input exposures
         pc = skyinfo.MiniskyPC.load(in_filename)
-        # ??? Should make this table part of the MiniskyPC class:
-        pctab = fitsio.read(in_filename,ext='EXPOSURES')
+        pctab = skyinfo.SkyPC.get_exposures(in_filename)
 
         # Build a MiniDECam that has our choice of CCDs that we can use for indexing.
         mini = pc.get_pc(0)
@@ -128,8 +127,8 @@ class SkyTemplate(PixCorrectImStep):
             logger.warning('Proceeding even though mem_use is not enough to store 1 row of blocks')
             yBlocks = 1
             
-        d = {'ccd':ccdnum}
-
+        d = {'ccd':ccdnum}   # A dictionary used to assign names to files
+        hdr = {}      # A dictionary of information to go into output image header
         # A mask of zero is equivalent to no masking:
         if bitmask==0:
             bitmask = None
@@ -155,7 +154,54 @@ class SkyTemplate(PixCorrectImStep):
                         m = np.array(fits['MSK'][yStart:yStop, :xSize],dtype=np.int16)
                         mask[i,:,:] = (m & bitmask)==0
                         del m
-                        
+                    if yStart==0:
+                        # First time through the images we will be collecting/checking
+                        # header information from the contributing images
+                        hdrin = fits['SCI'].read_header()
+                        usehdr = {}
+                        if 'BAND' in hdrin.keys():
+                            usehdr['BAND'] = hdrin['BAND']
+                        elif 'FILTER' in hdrin.keys():
+                            usehdr['BAND'] = decaminfo.get_band(hdrin['FILTER'])
+                        else:
+                            logger.error('No BAND or FILTER in ' + filename)
+                            return 1
+                        if 'NITE' in hdrin.keys():
+                            usehdr['NITE'] = hdrin['NITE']
+                        elif 'DATE-OBS' in hdrin.keys():
+                            usehdr['NITE'] = decaminfo.get_nite(hdrin['DATE-OBS'])
+                        else:
+                            logger.error('No NITE or DATE-OBS in ' + filename)
+                            return 1
+                        if 'FLATFIL' in hdrin.keys():
+                            usehdr['FLATFIL'] = hdrin['FLATFIL']
+                        else:
+                            logger.error('No FLATFIL in ' + filename)
+                            return 1
+                        if 'CCDNUM' in hdrin.keys():
+                            usehdr['CCDNUM'] = hdrin['CCDNUM']
+                        else:
+                            logger.error('No CCDNUM in ' + filename)
+                            return 1
+                        if len(hdr)==0:
+                            # First exposure will establish values for the output
+                            hdr['BAND'] = usehdr['BAND']
+                            hdr['MINNITE'] = usehdr['NITE']
+                            hdr['MAXNITE'] = usehdr['NITE']
+                            hdr['CCDNUM'] = usehdr['CCDNUM']
+                            if hdr['CCDNUM']!=ccdnum:
+                                logger.error('Wrong ccdnum {:d} in {:s}'.format(
+                                    ccdnum,filename))
+                            hdr['FLATFIL'] = usehdr['FLATFIL']
+                        else:
+                            # Check that this exposure matches the others
+                            try:
+                                items_must_match(hdr, usehdr, 'BAND','CCDNUM','FLATFIL')
+                            except:
+                                return 1
+                            hdr['MINNITE'] = min(hdr['MINNITE'],usehdr['NITE'])
+                            hdr['MAXNITE'] = max(hdr['MAXNITE'],usehdr['NITE'])
+                            
             data /= norms[:,np.newaxis,np.newaxis]  # Apply norms to be near unity
                     
             # Now cycle through all blocks
@@ -232,12 +278,12 @@ class SkyTemplate(PixCorrectImStep):
                     del resid, model, good, dsoln, block
             del data
 
-        # Save the template into the outfile
-        spc = skyinfo.SkyPC(out,detpos)
         # Add a history line about creation here
-        spc.header['HISTORY'] = time.asctime(time.localtime()) + \
-           ' Build sky template from PCA file {:s}'.format(path.basename(in_filename))
-        spc.save(out_filename, clobber=True)
+        hdr['HISTORY'] = time.asctime(time.localtime()) + \
+            ' Build sky template from PCA file {:s}'.format(path.basename(in_filename))
+        # Save the template into the outfile
+        spc = skyinfo.SkyPC(out,detpos,header=hdr)
+        spc.save(out_filename)
         del out
         
         # Save the number of good sky pixels in another extension
@@ -264,7 +310,6 @@ class SkyTemplate(PixCorrectImStep):
         infile = config.get(cls.step_name, 'infile')
         out_filename = config.get(cls.step_name, 'outfilename')
         ccdnum = config.getint(cls.step_name, 'ccdnum')
-        reject_rms = config.getfloat(cls.step_name, 'reject_rms')
         mem_use = config.getfloat(cls.step_name,'mem_use')
         image_template = config.get(cls.step_name,'image_template')
         if config.has_option(cls.step_name,'reject_rms'):
@@ -287,24 +332,7 @@ class SkyTemplate(PixCorrectImStep):
         return ret_code
 
     @classmethod
-    def parser(cls):
-        """Generate a parser
-        """
-        default_config = path.join(proddir, 'etc', cls.step_name+'.config')
-        default_out_config = path.join(cls.step_name+'-as_run'+'.config')
-
-        # Argument parser
-        parser = ArgumentParser(description=cls.description)
-        parser.add_argument("config", default=default_config, nargs="?",
-                            help="Configuration file filename")
-        parser.add_argument('-s', '--saveconfig', 
-                                 default=default_out_config,
-                                 help="output config file")
-        parser.add_argument('-l', '--log', 
-                                 default=cls.step_name+".log", 
-                                 help="the name of the logfile")
-        parser.add_argument('-v', '--verbose', action="count", 
-                                 help="be verbose")
+    def add_step_args(cls,parser):
 
         parser.add_argument('-i','--infile',type=str,
                             help='File with PCA information (from sky_pca)')
@@ -320,7 +348,7 @@ class SkyTemplate(PixCorrectImStep):
                             help='FITS file to hold counts of valid exposures per pixel')
         parser.add_argument('--mem_use', type=float, default=8.,
                             help='Number of GB of memory usage to target')
-        return parser
+        return
 
 
 sky_template = SkyTemplate()

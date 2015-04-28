@@ -10,16 +10,16 @@ from ConfigParser import SafeConfigParser, NoOptionError
 from pixcorrect import proddir
 from pixcorrect.corr_util import logger
 from despyfits.DESImage import DESDataImage, DESImage
-from pixcorrect.PixCorrectDriver import PixCorrectImStep, filelist_to_list
+from pixcorrect.PixCorrectDriver import PixCorrectDriver, filelist_to_list
 from pixcorrect import skyinfo
 
 # Which section of the config file to read for this step
 config_section = 'skycombine'
 
-class SkyCombine(PixCorrectImStep):
+class SkyCombine(PixCorrectDriver):
     description = "Combine sky images of all CCDs in one exposure"
     step_name = config_section
-    propagate = ['FILTER','DATE-OBS','EXPNUM','INSTRUME']
+    propagate = ['FILTER','DATE-OBS','EXPNUM','INSTRUME','BAND','NITE']
     # Header keywords to copy from a single-chip image into the output image
     
     @classmethod
@@ -58,6 +58,17 @@ class SkyCombine(PixCorrectImStep):
             if blocksize != out.blocksize:
                 raise SkyError('Mismatched blocksizes for SkyCombine')
             out.fill(small.data,small['DETPOS'].strip())
+            # Issue warnings for mismatches of data, but skip if
+            # quantities are not in headers
+            for k in ('BAND','NITE','EXPNUM'):
+                try:
+                    v1 = out[k]
+                    v2 = small[k]
+                    if not v1==v2:
+                        logger.warning('Mismatched {:s} in file {:s}: {} vs {}'.\
+                                       format(k,f,v1,v2))
+                except:
+                    pass
 
         out.save(out_filename)
 
@@ -66,7 +77,24 @@ class SkyCombine(PixCorrectImStep):
         return ret_code
 
     @classmethod
-    def step_run(cls, config):
+    def add_step_args(cls, parser):
+        """Add arguments specific to sky compression
+        """
+        parser.add_argument('--ccdnums',type=str,default=skyinfo.DEFAULT_CCDNUMS,
+                            help='Range(s) of ccdnums to combine')
+        parser.add_argument('--miniskyfiles',type=str,default=skyinfo.DEFAULT_MINISKY_FILES,
+                            help='Filename template for single-chip minisky images')
+        parser.add_argument('--miniskylist',type=str,default=None, help='File containing a list of single-chip minisky images')
+        parser.add_argument('-o','--outfilename',type=str,
+                            help='Filename for combined minisky FITS image')
+        parser.add_argument('--mask_value', type=float, default=skyinfo.DEFAULT_MASK_VALUE,
+                            help='Value of pixels without valid sky information')
+        parser.add_argument('--ignore', type=str, default=skyinfo.DEFAULT_IGNORE,
+                            help='Value(s) of DETPOS to ignore in sky image')
+        return
+
+    @classmethod
+    def run(cls, config):
         """Customized execution for sky combination.  Note there is NO input image nor output
 
         :Parameters:
@@ -108,32 +136,6 @@ class SkyCombine(PixCorrectImStep):
         logger.info('Sky combine output to %s' % out_filename)
     
         ret_code = cls.__call__(in_filenames, out_filename, mask_value, invalid)
-        return ret_code
-
-    @classmethod
-    def add_step_args(cls, parser):
-        """Add arguments specific to sky compression
-        """
-        parser.add_argument('--ccdnums',type=str,default=skyinfo.DEFAULT_CCDNUMS,
-                            help='Range(s) of ccdnums to combine')
-        parser.add_argument('--miniskyfiles',type=str,default=skyinfo.DEFAULT_MINISKY_FILES,
-                            help='Filename template for single-chip minisky images')
-        parser.add_argument('--miniskylist',type=str,default=None, help='File containing a list of single-chip minisky images')
-        parser.add_argument('--outfilename',type=str,
-                            help='Filename for combined minisky FITS image')
-        parser.add_argument('--mask_value', type=float, default=skyinfo.DEFAULT_MASK_VALUE,
-                            help='Value of pixels without valid sky information')
-        parser.add_argument('--ignore', type=str, default=skyinfo.DEFAULT_IGNORE,
-                            help='Value(s) of DETPOS to ignore in sky image')
-        return
-
-    @classmethod
-    def run(cls, config):
-        """Execute the sky combine step.
-        Need to override the PixCorrectImStep version since this step has no
-        input nor output image
-        """
-        ret_code = cls.step_run(config)
         return ret_code
 
 sky_combine = SkyCombine()

@@ -67,6 +67,15 @@ class PixCorrectIm(PixCorrectMultistep):
         return im
 
 
+    @classmethod
+    def _check_return(cls,retval):
+        """
+        Exit the program if the retval is nonzero.
+        """
+        if retval!=0:
+            sys.exit(retval)
+        return
+    
     def __call__(self):
         """Do image-by-image pixel level corrections
         """
@@ -79,26 +88,31 @@ class PixCorrectIm(PixCorrectMultistep):
 
         # Bias subtraction
         if self.do_step('bias'):
-            bias_correct(self.sci, self.bias)
+            self._check_return(bias_correct(self.sci, self.bias))
         self.clean_im('bias')
 
         # Linearization
         if self.do_step('lincor'):
             lincor_fname=self.config.get('pixcorrect_im','lincor')
-            linearity_correct(self.sci,lincor_fname)
+            self._check_return(linearity_correct(self.sci,lincor_fname))
 
         # Make the mask plane and mark saturated pixels.  Note that flags
         # are set to mark saturated pixels and keep any previously existing mask bits.
         if self.do_step('bpm'):
-            make_mask(self.sci, self.bpm, saturate=True, clear=False)
+            self._check_return(make_mask(self.sci,
+                                         self.bpm,
+                                         saturate=True,
+                                         clear=False))
 
         if self.do_step('gain'):
-            gain_correct(self.sci)
+            self._check_return(gain_correct(self.sci))
             
         # B/F correction
         if self.do_step('bf'):
             bf_fname = self.config.get('pixcorrect_im', 'bf')
-            bf_correct(self.sci, bf_fname, bfinfo.DEFAULT_BFMASK)
+            self._check_return(bf_correct(self.sci,
+                                          bf_fname,
+                                          bfinfo.DEFAULT_BFMASK))
             
         # If done with the BPM; let python reclaim the memory
         if not self.do_step('fixcol'):
@@ -106,40 +120,49 @@ class PixCorrectIm(PixCorrectMultistep):
 
         # Flat field
         if self.do_step('flat'):
-            flat_correct(self.sci, self.flat)
+            self._check_return(flat_correct(self.sci, self.flat))
             if not self.do_step('sky'):
                 self.clean_im('flat')
 
         # Fix columns
         if self.do_step('fixcols'):
-            fix_columns(self.sci, self.bpm)
+            self._check_return(fix_columns(self.sci, self.bpm))
             self.clean_im('bpm')
 
         # Make mini-sky image
         if self.do_step('mini'):
             mini = self.config.get('pixcorrect_im','mini')
             blocksize = self.config.getint('pixcorrect_im','blocksize')
-            sky_compress(self.sci, mini, blocksize, skyinfo.DEFAULT_SKYMASK)
+            self._check_return(sky_compress(self.sci,
+                                            mini,
+                                            blocksize,
+                                            skyinfo.DEFAULT_SKYMASK))
 
         # Subtract sky and make weight plane - forcing option to do "sky-only" weight
         if self.do_step('sky'):
             sky_fname = self.config.get('pixcorrect_im','sky')
             fit_fname = self.config.get('pixcorrect_im','skyfit')
-            sky_subtract(self.sci, fit_fname, sky_fname, 'sky', self.flat)
+            self._check_return(sky_subtract(self.sci,
+                                            fit_fname,
+                                            sky_fname,
+                                            'sky',
+                                            self.flat))
             if not self.do_step('addweight'):
                 self.clean_im('flat')
         
         # Star flatten
         if self.do_step('starflat'):
-            starflat_correct(self.sci, self.starflat)
+            self._check_return(starflat_correct(self.sci, self.starflat))
         self.clean_im('starflat')
 
         # Re-saturate pixels (??? Can also null weights at selected mask bits here)
         if self.do_step('resaturate'):
-            null_weights(self.sci, bitmask=0, resaturate=True)
+            self._check_return(null_weights(self.sci,
+                                            bitmask=0,
+                                            resaturate=True))
         
         if self.do_step('addweight'):
-            add_weight(self.sci, self.flat)
+            self._check_return(add_weight(self.sci, self.flat))
         self.clean_im('flat')
 
         out_fname = self.config.get('pixcorrect_im', 'out')

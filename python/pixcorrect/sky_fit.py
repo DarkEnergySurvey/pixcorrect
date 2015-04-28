@@ -9,7 +9,7 @@ import numpy as np
 from ConfigParser import SafeConfigParser, NoOptionError
 
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger
+from pixcorrect.corr_util import logger, items_must_match
 from despyfits.DESImage import DESDataImage, DESImage
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import skyinfo
@@ -37,6 +37,11 @@ class SkyFit(PixCorrectImStep):
 
         mini = skyinfo.MiniDecam.load(in_filename)
         templates = skyinfo.MiniskyPC.load(pc_filename)
+        try:
+            # Insure using the correct filter's PCA
+            items_must_match(mini.header,templates.header,'BAND')
+        except:
+            return 1
         templates.fit(mini, clip_sigma)
         mini.save(out_filename)
 

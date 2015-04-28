@@ -15,7 +15,7 @@ import numpy as np
 from ConfigParser import SafeConfigParser, NoOptionError
 
 from pixcorrect import proddir
-from pixcorrect.corr_util import logger, do_once
+from pixcorrect.corr_util import logger, do_once, items_must_match
 from despyfits.DESImage import DESDataImage, DESImage, DESBPMImage
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect.clippedMean import clippedMean
@@ -83,8 +83,11 @@ class FixColumns(PixCorrectImStep):
         
         if image.mask is None:
             raise FixColumnsError('Input image does not have mask')
-        if image['CCDNUM'] != bpm['CCDNUM']:
-            raise FixColumnsError('Image CCDNUM {:d} does not match BPM {:d}'.format(image['CCDNUM'],bpm['CCDNUM']))
+        # Check that dome and data are from same CCD
+        try:
+            items_must_match(image, bpm, 'CCDNUM')
+        except:
+            return 1
 
         # A "fixable" column will have CORR flag set at either start or end of column
         fixable = np.where(np.logical_or(bpm.mask[0,:] & cls.CORR,

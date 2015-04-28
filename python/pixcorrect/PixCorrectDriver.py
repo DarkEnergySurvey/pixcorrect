@@ -187,10 +187,11 @@ class PixCorrectImStep(PixCorrectStep):
         parser.add_argument('-o', '--out', 
                                  default=None,
                                  help='output image file name')
-        parser.add_argument('-n', '--ccdnum', nargs='?', 
+        """
+                            parser.add_argument('-n', '--ccdnum', nargs='?', 
                             type=int,
                             help='input image CCD number')
-
+        """
         cls.add_step_args(parser)
 
         return parser
