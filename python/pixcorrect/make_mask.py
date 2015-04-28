@@ -79,7 +79,7 @@ class MakeMask(PixCorrectImStep):
 
                 # Mark slightly dodgy pixels
                 bitmask = BPMDEF_FUNKY_COL | \
-                    BPMDEF_TAPE_BUMP
+                    BPMDEF_SUSPECT
                 # ??? Is this what to do with FUNKY_COL ???
                 mark = (bpm_im.mask & bitmask) != 0
                 image.mask[mark] |= BADPIX_SUSPECT
