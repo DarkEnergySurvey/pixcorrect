@@ -1,5 +1,5 @@
-#include "despyfits/desimage.h"
-#include "despyfits/mask_bits.h"
+#include "desimage.h"
+#include "mask_bits.h"
 
 /* based on imcorrect.c svn-30871 lines 1466-1475 */
 int bias_c(desimage output, desimage bias) {

@@ -1,5 +1,5 @@
-#include "despyfits/mask_bits.h"
-#include "despyfits/desimage.h"
+#include "mask_bits.h"
+#include "desimage.h"
 
 /* based on
  * https://dessvn.cosmology.illinois.edu/svn/desdm/devel/imsupport/trunk/src/imarithsubs.c

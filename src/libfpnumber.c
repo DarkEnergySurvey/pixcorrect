@@ -1,4 +1,4 @@
-#include "despyfits/desimage.h"
+#include "desimage.h"
 
 /* Dummy to demonstrate application of C library to full focal plane of images*/
 
