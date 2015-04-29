@@ -1,5 +1,5 @@
-#include "despyfits/desimage.h"
-#include "despyfits/mask_bits.h"
+#include "desimage.h"
+#include "mask_bits.h"
 
 int colAve(int icol, short int bitson,
 	   desimage bpm, desimage output,
