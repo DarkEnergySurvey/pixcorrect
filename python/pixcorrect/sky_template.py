@@ -31,7 +31,8 @@ class SkyTemplate(PixCorrectDriver):
     def __call__(cls,
                  in_filename, out_filename,
                  ccdnum,
-                 img_template,
+                 input_template=None,
+                 input_list=None,
                  good_filename = None,
                  reject_rms = None,
                  mem_use = 8.,
@@ -39,7 +40,10 @@ class SkyTemplate(PixCorrectDriver):
         """
         Create full-resolution sky templates based on previous PCA.
         Does this pixel by pixel, via robust fitting of the data in the input
-        full-res images to the PCA coefficients.
+        full-res images to the PCA coefficients.  The full-res input images' filenames
+        are determined from the EXPNUM _either_ by python formatting of the string
+        given in -input_template _or_ by looking at the list of expnum, filename pairs
+        in the file specified by -input-list.
         Output FITS image has an extension NGOOD giving number of
         images used in fit at each pixel.
 
@@ -47,8 +51,10 @@ class SkyTemplate(PixCorrectDriver):
             - `in_filename`: the file holding the PCA outputs on compressed sky
             - `out_filename`: filename for the output template
             - `ccdnum`: which CCD to produce templates for
-            - `img_template`: string that can be formatted with the expnum to yield
+            - `input_template`: string that can be formatted with the expnum to yield
                             filename of the DESImage holding the full-res data.
+            - `input_list`: name of a file containing expnum, filename pairs, one pair per
+                            line, separated by whitespace.
             - `good_filename`: Name of a FITS file in which to save number of images
                             contributing to each pixel's fit.  No output if None.  
             - `reject_rms`: Exclude exposures with fractional RMS residual sky above this.
@@ -60,6 +66,11 @@ class SkyTemplate(PixCorrectDriver):
  
         logger.info('Starting sky template construction')
 
+        # Need exactly one of these two arguments:
+        if not ( (input_template is None) ^ (input_list is None)):
+            logger.error('Need exactly one of input_template and input_list to be given')
+            return 1
+        
         # Acquire PCA information, including the table of info on input exposures
         pc = skyinfo.MiniskyPC.load(in_filename)
         pctab = skyinfo.SkyPC.get_exposures(in_filename)
@@ -82,6 +93,20 @@ class SkyTemplate(PixCorrectDriver):
         else:
             # Choose our own threshold
             use = pctab['RMS'] < reject_rms
+
+        # Get filenames for the full-res images from list:
+        if input_list is not None:
+            filenames = {}
+            flist = np.loadtxt(input_list,dtype=str)
+            for expnum,filename in flist:
+                filenames[int(expnum)] = filename
+            del flist
+            # Now warn if we are missing expnums and remove from usable exposure list
+            for i in range(len(use)):
+                if use[i] and not int(pctab['EXPNUM'][i]) in filenames.keys():
+                    use[i] = False
+                    logger.warning('No input filename given for expnum ' + str(expnum))
+                    
         nimg = np.count_nonzero(use)
 
         expnums = []
@@ -144,7 +169,12 @@ class SkyTemplate(PixCorrectDriver):
 
             for i,expnum in enumerate(expnums):
                 d['expnum']=expnum
-                filename = img_template.format(**d)
+                if input_template is None:
+                    # Get the filename from the input list
+                    filename = filenames[expnum]
+                else:
+                    # Get the filename from formatting the template
+                    filename = input_template.format(**d)
                 logger.debug('Getting pixels from ' + filename)
                 with fitsio.FITS(filename) as fits:
                     data[i,:,:] = fits['SCI'][yStart:yStop, :xSize]
@@ -311,11 +341,22 @@ class SkyTemplate(PixCorrectDriver):
         out_filename = config.get(cls.step_name, 'outfilename')
         ccdnum = config.getint(cls.step_name, 'ccdnum')
         mem_use = config.getfloat(cls.step_name,'mem_use')
-        image_template = config.get(cls.step_name,'image_template')
+
+        if config.has_option(cls.step_name,'input_template'):
+            input_template = config.get(cls.step_name,'input_template')
+        else:
+            input_template = None
+
+        if config.has_option(cls.step_name,'input_list'):
+            input_list = config.get(cls.step_name,'input_list')
+        else:
+            input_list = None
+            
         if config.has_option(cls.step_name,'reject_rms'):
             reject_rms = config.getfloat(cls.step_name,'reject_rms')
         else:
             reject_rms = None
+
         if config.has_option(cls.step_name,'good_filename'):
             good_filename = config.get(cls.step_name,'good_filename')
         else:
@@ -324,7 +365,8 @@ class SkyTemplate(PixCorrectDriver):
         ret_code = cls.__call__(in_filename=infile,
                                 out_filename=out_filename,
                                 ccdnum=ccdnum,
-                                img_template=image_template,
+                                input_template=input_template,
+                                input_list=input_list,
                                 reject_rms=reject_rms,
                                 mem_use=mem_use,
                                 good_filename=good_filename,
@@ -340,8 +382,11 @@ class SkyTemplate(PixCorrectDriver):
                             help='Name for output FITS template file')
         parser.add_argument('-c','--ccdnum',type=int,
                             help='CCDNUM of device for which to build templates')
-        parser.add_argument('--image_template',type=str,default='D{expnum:08d}_{ccd:02d}_fp.fits',
-                            help='String which yields filenames of individual FITS images when formatted')
+        parser.add_argument('--input_template',type=str,
+                            help='String which yields filenames of individual FITS images when formatted,'
+                            ' e.g. D{expnum:08d}_{ccd:02d}_fp.fits')
+        parser.add_argument('--input_list',type=str,
+                            help='File holding pairs of expnum, filename on each line giving input images')
         parser.add_argument('--reject_rms', type=float,
                             help='Reject exposures with RMS resids from PCA fit above this')
         parser.add_argument('--good_filename', type=str,

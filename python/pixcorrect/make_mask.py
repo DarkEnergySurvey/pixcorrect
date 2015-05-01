@@ -46,7 +46,7 @@ class MakeMask(PixCorrectImStep):
         if bpm_im is not None:
             # Check for header keyword of whether it's been done
             kw = 'DESBPM'
-            if kw in image.header.keys():
+            if kw in image.header.keys() and not clear:
                 logger.warning('Skipping BPM application ('+kw+' already set)')
             else:
                 logger.info('Applying BPM')
@@ -97,7 +97,7 @@ class MakeMask(PixCorrectImStep):
         if saturate:
             # Check for header keyword of whether it's been done
             kw = 'DESSAT'
-            if kw in image.header.keys():
+            if kw in image.header.keys() and not clear:
                 logger.warning('Skipping saturation check ('+kw+' already set)')
             else:
                 logger.info('Flagging saturated pixels')
