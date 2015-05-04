@@ -1,3 +1,4 @@
+setupRequired(shlib 2.1.11+1)
 setupRequired(scipy 0.14.0+5)
 envPrepend(PATH, ${PRODUCT_DIR}/build/scripts-2.7)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
