@@ -71,7 +71,7 @@ def do_once(arg_idx, fits_keyword):
                 result = f(*args, **kwargs)
                 hdu.header[fits_keyword]=time.asctime(time.localtime())
             else:
-                result = None
+                result = 0
                 logger.warning("Skipping " + f.__name__ +  " (" + fits_keyword + " already set)")
             return result
         return f_wrapper

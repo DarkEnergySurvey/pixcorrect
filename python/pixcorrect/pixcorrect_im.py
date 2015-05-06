@@ -28,6 +28,7 @@ from pixcorrect.sky_compress import sky_compress
 from pixcorrect.sky_subtract import sky_subtract
 from pixcorrect.bf_correct import bf_correct
 from pixcorrect.add_weight import add_weight
+from pixcorrect.starflat_correct import starflat_correct
 from pixcorrect import bfinfo
 from pixcorrect import skyinfo
 

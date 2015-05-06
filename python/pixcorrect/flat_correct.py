@@ -50,7 +50,7 @@ class FlatCorrect(PixCorrectImStep):
         if image.weight is not None:
             image.weight *= flat_im.data*flat_im.data
         if image.variance is not None:
-            image.weight /= flat_im.data*flat_im.data
+            image.variance /= flat_im.data*flat_im.data
 
         # If mask image exists, mark as BADPIX_BPM any pixels that have
         # non-positive flat and are not already flagged.

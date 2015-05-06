@@ -12,6 +12,7 @@ from despyfits.DESImage import DESImage
 from despyfits import maskbits
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import decaminfo
+from pixcorrect.flat_correct import FlatCorrect
 
 # Which section of the config file to read for this step
 config_section = 'starflat'

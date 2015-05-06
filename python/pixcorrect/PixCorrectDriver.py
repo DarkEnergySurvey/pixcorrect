@@ -110,10 +110,13 @@ class PixCorrectDriver(object):
         # start logger
         if args.log is not None and len(args.log)>0:
             logging.basicConfig(filename=args.log,
-                                format="%(asctime)s\t%(message)s",
+                                format="%(asctime)s %(levelname)s:\t%(message)s",
                                 level=logging.WARNING)
+            sh = logging.StreamHandler()
+            sh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s:\t%(message)s"))
+            logger.addHandler(sh)
         else:
-            logging.basicConfig(format="%(asctime)s\t%(message)s",
+            logging.basicConfig(format="%(asctime)s %(levelname)s:\t%(message)s",
                                 level=logging.WARNING)
 
         global logger
@@ -122,7 +125,6 @@ class PixCorrectDriver(object):
             verbosity = logging.INFO if args.verbose==1 else logging.DEBUG
             logger.setLevel(verbosity)
 
-        logger.addHandler(logging.StreamHandler())
         
         try:
             ret_val = cls.run(config)
