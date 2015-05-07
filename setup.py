@@ -7,6 +7,9 @@ import shlib
 from shlib.build_shlib import SharedLibrary
 
 bin_files = glob.glob('bin/*')
+#inc_files = glob.glob("include/*.h") 
+#doc_files = glob.glob("doc/*.*") + glob.glob("doc/*/*") 
+
 
 libbiascorrect = SharedLibrary(
     'biascorrect',
@@ -54,6 +57,9 @@ setup(name='pixcorrect',
       packages = ['pixcorrect'],
       package_dir = {'': 'python'},
       scripts = bin_files,
-      data_files=[('ups',['ups/pixcorrect.table'])],
+      data_files=[ ('ups',['ups/pixcorrect.table']),
+                   #('doc', doc_files),
+                   #('include', inc_files),
+                   ]
       )
 
