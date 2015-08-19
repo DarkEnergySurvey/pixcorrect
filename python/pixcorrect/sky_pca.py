@@ -94,7 +94,7 @@ def process(m, npc):
     norms = np.sqrt(np.sum(U*U,axis=0)/U.shape[0])
     U /= norms
     V *= norms
-    return U, V, s
+    return U, s, V
 
 class SkyPCA(PixCorrectDriver):
     description = "Perform robust PCA of a collection of MiniDecam images"
@@ -113,6 +113,8 @@ class SkyPCA(PixCorrectDriver):
         """
  
         logger.info('Collecting images for PCA')
+        if npc > skyinfo.MAX_PC:
+            raise SkyError("Requested number of sky pc's {:d} is above MAX_PC".format(npc))
         mm = []  # will hold the data vectors for each exposure
         expnums = []  # Collect the exposure numbers of exposures being used
         data_length = None
@@ -193,10 +195,9 @@ class SkyPCA(PixCorrectDriver):
             frac[i] = mini.frac
 
         # Write V and a results table
-        skyinfo.SkyPC.save_exposures(out_filename,
-                                     expnums, V, rms, frac, use)
+        skyinfo.MiniskyPC.save_exposures(out_filename,
+                                         expnums, V, rms, frac, use, S)
 
-        # Create a one-line binary fits table to hold the coefficients
         logger.debug('Finished PCA')
         ret_code=0
         return ret_code

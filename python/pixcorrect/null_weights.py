@@ -110,7 +110,7 @@ class NullWeights(PixCorrectImStep):
         parser.add_argument('--resaturate', action='store_true',
                             help='Put saturated value in BADPIX_SATURATE pixels')
         parser.add_argument('--bitmask', default=cls.DEFAULT_BITMASK,
-                            help='Clear any pre-existing mask bits')
+                            help='Names of mask bits to null (or an integer mask)')
 
 null_weights = NullWeights()
 

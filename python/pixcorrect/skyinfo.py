@@ -28,6 +28,7 @@ DEFAULT_CCDNUMS = '1-62'  # CCDNUMs to use
 DEFAULT_MINISKY_FILES = 'minisky%%02d.fits'  # Template for mini-sky file names to assemble.
 DEFAULT_CLIP_SIGMA = 3.  # Rejection threshold for robust fitting of sky to PCs.
 DEFAULT_WEIGHT = 'sky'   # Will build a weight image based on sky counts
+MAX_PC = 20              # Largest number of PC's we expect to ever see
 
 class SkyError(Exception):
     """
@@ -175,7 +176,6 @@ class MiniDecam(object):
         Array of coefficients for sky templates.  Stored in header as 'SKYPCnn' entries
         """
         c = []
-        MAX_PC = 20
         for ipc in range(MAX_PC):
             kw = 'SKYPC{:>02d}'.format(ipc)
             if kw not in self.header:
@@ -185,6 +185,12 @@ class MiniDecam(object):
 
     @coeffs.setter
     def coeffs(self,c):
+        # First get rid of any existing SKYPC values
+        for ipc in range(MAX_PC):
+            kw = 'SKYPC{:>02d}'.format(ipc)
+            if kw in self.header:
+                self.header.delete(kw)
+        # Then add new ones.
         for ipc,val in enumerate(c):
             kw = 'SKYPC{:>02d}'.format(ipc)
             self.header[kw] = float(val)
@@ -222,7 +228,6 @@ class MiniDecam(object):
         if detpos in self.invalid:
             return
         if data.shape != tuple(self._chip):
-            print data.shape, self._chip, detpos ##
             raise SkyError('MiniDecam.fill input data has wrong shape ' + str(data.shape))
         y,x = self._corner_of(detpos)
         if self.halfS7 and detpos=='S7':
@@ -457,6 +462,55 @@ class MiniskyPC(object):
         out.fill_from(self.U[:,ipc])
         return out
     
+    @classmethod
+    def get_exposures(cls, filename):
+        """
+        Get table of information on individual exposures from the named MiniskyPC file
+        """
+        tab1 = fitsio.read(filename,ext='EXPOSURES')
+        tab = {'EXPNUM':tab1['EXPNUM'],
+               'COEFFS':tab1['COEFFS'],
+               'RMS':tab1['RMS'],
+               'FRAC':tab1['FRAC'],
+               'USE': (tab1['USE']!=0)} # *** Need to convert byte to bool for fitsio bug
+        return tab
+
+    @classmethod
+    def get_pc_rms(cls, filename):
+        """
+        Get vector of the RMS signal in each PC from an exposure table stored with it
+        """
+        h = fitsio.read_header(filename,ext='EXPOSURES')
+        rms = []
+        for i in range(MAX_PC):
+            try:
+                x = h['PCRMS{:02d}'.format(i)]
+                rms.append(x)
+            except:
+                break
+        return np.array(rms, dtype=float)
+
+    @classmethod
+    def save_exposures(cls, filename, expnums, coeffs, rms, frac, use, s):
+        """
+        Add an extension to a MiniskyPC file that contains binary table of PCA fitting
+        results for exposures.
+        """
+        # *** Note saving the USE array in bytes since fitsio has a bug reading bools
+        tab = {'EXPNUM':np.array(expnums,dtype=np.int32),
+                'COEFFS':coeffs,
+                'RMS':rms,
+                'FRAC':frac,
+                'USE':np.array(use,dtype=np.int8)}
+            
+        # Place the rms in each PC into header keywords
+        h = {}
+        for i in range(min(MAX_PC,len(s))):
+            h['PCRMS{:02d}'.format(i)] = s[i]
+        with fitsio.FITS(filename,'rw') as fits:
+            fits.write(tab, header=h, extname='EXPOSURES')
+        return
+
 class SkyPC(object):
     """
     Full-resolution sky principal components (templates)
@@ -505,35 +559,6 @@ class SkyPC(object):
         # ?? or return np.tensordot(coeffs, self.d, axes=1)
         return np.sum(coeffs[:,np.newaxis,np.newaxis]*self.d, axis=0)
     
-    @classmethod
-    def get_exposures(cls, filename):
-        """
-        Get table of information on individual exposures from the named SkyPC file
-        """
-        tab1 = fitsio.read(filename,ext='EXPOSURES')
-        tab = {'EXPNUM':tab1['EXPNUM'],
-               'COEFFS':tab1['COEFFS'],
-               'RMS':tab1['RMS'],
-               'FRAC':tab1['FRAC'],
-               'USE': (tab1['USE']!=0)} # *** Need to convert byte to bool for fitsio bug
-        return tab
-
-    @classmethod
-    def save_exposures(cls, filename, expnums, coeffs, rms, frac, use):
-        """
-        Add an extension to a SkyPC file that contains binary table of PCA fitting
-        results for exposures.
-        """
-        # *** Note saving the USE array in bytes since fitsio has a bug reading bools
-        tab = {'EXPNUM':np.array(expnums,dtype=np.int32),
-                'COEFFS':coeffs,
-                'RMS':rms,
-                'FRAC':frac,
-                'USE':np.array(use,dtype=np.int8)}
-            
-        with fitsio.FITS(filename,'rw') as fits:
-            fits.write(tab, extname='EXPOSURES')
-        return
 
 def linearFit(y, x, aStart, cost, dump=False):
     """

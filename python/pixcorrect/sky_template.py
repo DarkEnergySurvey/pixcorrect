@@ -73,7 +73,7 @@ class SkyTemplate(PixCorrectDriver):
         
         # Acquire PCA information, including the table of info on input exposures
         pc = skyinfo.MiniskyPC.load(in_filename)
-        pctab = skyinfo.SkyPC.get_exposures(in_filename)
+        pctab = skyinfo.MiniskyPC.get_exposures(in_filename)
 
         # Build a MiniDECam that has our choice of CCDs that we can use for indexing.
         mini = pc.get_pc(0)
@@ -81,7 +81,7 @@ class SkyTemplate(PixCorrectDriver):
         detpos = decaminfo.detpos_dict[ccdnum]
         try:
             mini.index_of(detpos,1,1)
-        except SkyError:
+        except skyinfo.SkyError:
             logger.error('Template requested for CCDNUM not included in PCA')
             return 1
 
@@ -136,11 +136,6 @@ class SkyTemplate(PixCorrectDriver):
         # And an array to hold the number of exposures used at each pixel:
         if good_filename is not None:
             ngood = np.zeros( (ySize, xSize), dtype=np.int16)
-
-        # Only fill half of it for the bad amp:
-        if ccdnum==decaminfo.ccdnums['S7'] and pc.halfS7:
-            xSize = xSize/2
-            
 
         # Decide how many rows of blocks we'll read from files at a time
         bytes_per_row = 4 * xSize * pc.blocksize * nimg
@@ -238,6 +233,22 @@ class SkyTemplate(PixCorrectDriver):
             for jb in range((yStop-yStart)/pc.blocksize):
                 for ib in range(xSize/pc.blocksize):
                     logger.debug('Fitting for block ({:d},{:d})'.format(jb+yStart/pc.blocksize,ib))
+                    if ccdnum==decaminfo.ccdnums['S7'] and \
+                       pc.halfS7 and \
+                       ib >= xSize/pc.blocksize/2:
+                        # If we are looking at the bad amp of S7, we'll just
+                        # store the median of the normalized images in PC0.
+                        # The other PC's stay at zero.
+                        out[0,
+                            yStart+jb*pc.blocksize:yStart+(jb+1)*pc.blocksize,
+                            ib*pc.blocksize:(ib+1)*pc.blocksize] = \
+                          np.median(data[:,
+                                         jb*pc.blocksize:(jb+1)*pc.blocksize,
+                                         ib*pc.blocksize:(ib+1)*pc.blocksize],
+                                    axis=0)
+                        continue
+            
+
                     # Use PCA of this block as starting guess at solution
                     index = mini.index_of(detpos,
                                           yStart/pc.blocksize + jb,
