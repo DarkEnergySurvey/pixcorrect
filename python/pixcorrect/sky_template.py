@@ -153,6 +153,8 @@ class SkyTemplate(PixCorrectDriver):
         if bitmask==0:
             bitmask = None
             
+        nonConvergentBlocks = 0  # Keep count of blocks where clipping does not converge.
+        
         # Collect input data in chunks of yBlocks rows of blocks, then process one block at a time.
         for yStart in range(0,ySize,yBlocks*pc.blocksize):
             # Acquire the pixel data into a 3d array
@@ -300,8 +302,7 @@ class SkyTemplate(PixCorrectDriver):
                         if shift < TOLERANCE:
                             break
                         if i==MAX_ITERATIONS-1:
-                            logger.warning('Clipping did not converge at block ({:d},{:d})'.format(\
-                                jb+yStart/pc.blocksize,ib))
+                            nonConvergentBlocks = nonConvergentBlocks + 1
                                            
                     # Save results into big matrices
                     soln.resize(npc,pc.blocksize,pc.blocksize)
@@ -318,6 +319,10 @@ class SkyTemplate(PixCorrectDriver):
                         del nblock
                     del resid, model, good, dsoln, block
             del data
+
+        if nonConvergentBlocks > 0:
+            logger.warning('Clipping did not converge for {:d} blocks out of {:d}'.format\
+                           (nonConvergentBlocks,xBlocks*(ySize/pc.blocksize)))
 
         # Add a history line about creation here
         hdr['HISTORY'] = time.asctime(time.localtime()) + \
