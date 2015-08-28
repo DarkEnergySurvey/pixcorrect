@@ -77,7 +77,6 @@ class RowInterp(PixCorrectImStep):
         work = np.array(interpolate)
         work[:,1:] = np.logical_and(interpolate[:,1:], ~interpolate[:,:-1])
         ystart,xstart = np.where(work)
-        print xstart,'--',ystart ###
 
         work = np.array(interpolate)
         work[:,:-1] = np.logical_and(interpolate[:,:-1], ~interpolate[:,1:])
