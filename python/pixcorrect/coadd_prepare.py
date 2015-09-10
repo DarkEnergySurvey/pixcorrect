@@ -47,8 +47,8 @@ class CoaddPrepare:
         logger.info('Preparing coadd {:s} for catalog'.format(imageIn))
 
         # Read weight plane and science plane
-        sci,scihdr = fitsio.read(imageIn, ext=1, header=True)
-        wt,wthdr = fitsio.read(imageIn, ext=2, header=True)
+        sci,scihdr = fitsio.read(imageIn, ext=0, header=True)
+        wt,wthdr = fitsio.read(imageIn, ext=1, header=True)
 
         # Make mask plane
         mask = wt <= float(weight_threshold)
@@ -97,8 +97,8 @@ class CoaddPrepare:
         logger.debug('Writing output images')
         with fitsio.FITS(imageOut, mode=fitsio.READWRITE, clobber=True) as ff:
             ff.write(sci, extname='SCI', header=scihdr, clobber=True)
-            ff.write(wt, extname='WGT', header=wthdr)
             ff.write(mask, extname='MSK')
+            ff.write(wt, extname='WGT', header=wthdr)
         
         logger.debug('Finished coadd_prepare')
 
