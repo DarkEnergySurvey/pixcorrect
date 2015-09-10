@@ -24,6 +24,64 @@ class CoaddPrepare:
     MASK_VALUE = 1 # Value placed into mask plane for invalid pixel
 
     @classmethod
+    def main(cls):
+        description = "Prepare coadd file for SExtractor by interpolating across low-weight pixels," \
+          " and adding a mask plane that flags the interpolated pixels"
+    
+        # Get arguments
+        parser = ArgumentParser(description=description)
+        parser.add_argument('-l', '--log', 
+                        default="", 
+                        help="the name of the logfile")
+        parser.add_argument('-v', '--verbose', action="count", 
+                        help="be verbose")
+        parser.add_argument('-i', '--infile', 
+                        default=None,
+                        help='input coadd image file name')
+        parser.add_argument('-o', '--outfile', 
+                        default=None,
+                        help='output coadd image file name')
+        parser.add_argument('--min_cols',
+                        default=None, 
+                        help='minimum height of region to interpolate')
+        parser.add_argument('--max_cols',
+                        default=None, 
+                        help='maximum height of region to interpolate')
+        parser.add_argument('--weight_threshold',
+                        default=CoaddPrepare.DEFAULT_WEIGHT_THRESHOLD, 
+                        help='Maximum weight value to interpolate over')
+        parser.add_argument('--weight_value',
+                        default=CoaddPrepare.DEFAULT_WEIGHT_VALUE, 
+                        help='Weight value assigned to interpolated pixels')
+    
+        args = parser.parse_args()
+    
+        # Set up logger
+        if args.log is not None and len(args.log)>0:
+            logging.basicConfig(filename=args.log,
+                            format="%(asctime)s %(levelname)s:\t%(message)s",
+                            level=logging.WARNING)
+            sh = logging.StreamHandler()
+            sh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s:\t%(message)s"))
+            logger.addHandler(sh)
+        else:
+            logging.basicConfig(format="%(asctime)s %(levelname)s:\t%(message)s",
+                            level=logging.WARNING)
+
+        logger = logging.getLogger()
+        if args.verbose > 0:
+            verbosity = logging.INFO if args.verbose==1 else logging.DEBUG
+            logger.setLevel(verbosity)
+
+        # Call routine
+        ret_val = coadd_prepare(args.infile, args.outfile,
+                            min_cols=args.min_cols,
+                            max_cols=args.max_cols,
+                            weight_threshold = float(args.weight_threshold),
+                            weight_value = float(args.weight_value))
+        sys.exit(ret_val)
+        
+    @classmethod
     def __call__(cls, imageIn, imageOut,
                  min_cols=DEFAULT_MINCOLS,
                  max_cols=DEFAULT_MAXCOLS,
@@ -111,58 +169,4 @@ coadd_prepare = CoaddPrepare()
 # Call from command line:
 
 if __name__ == '__main__':
-    description = "Prepare coadd file for SExtractor by interpolating across low-weight pixels," \
-      " and adding a mask plane that flags the interpolated pixels"
-    
-    # Get arguments
-    parser = ArgumentParser(description=description)
-    parser.add_argument('-l', '--log', 
-                        default="", 
-                        help="the name of the logfile")
-    parser.add_argument('-v', '--verbose', action="count", 
-                        help="be verbose")
-    parser.add_argument('-i', '--infile', 
-                        default=None,
-                        help='input coadd image file name')
-    parser.add_argument('-o', '--outfile', 
-                        default=None,
-                        help='output coadd image file name')
-    parser.add_argument('--min_cols',
-                        default=None, 
-                        help='minimum height of region to interpolate')
-    parser.add_argument('--max_cols',
-                        default=None, 
-                        help='maximum height of region to interpolate')
-    parser.add_argument('--weight_threshold',
-                        default=CoaddPrepare.DEFAULT_WEIGHT_THRESHOLD, 
-                        help='Maximum weight value to interpolate over')
-    parser.add_argument('--weight_value',
-                        default=CoaddPrepare.DEFAULT_WEIGHT_VALUE, 
-                        help='Weight value assigned to interpolated pixels')
-    
-    args = parser.parse_args()
-    
-    # Set up logger
-    if args.log is not None and len(args.log)>0:
-        logging.basicConfig(filename=args.log,
-                            format="%(asctime)s %(levelname)s:\t%(message)s",
-                            level=logging.WARNING)
-        sh = logging.StreamHandler()
-        sh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s:\t%(message)s"))
-        logger.addHandler(sh)
-    else:
-        logging.basicConfig(format="%(asctime)s %(levelname)s:\t%(message)s",
-                            level=logging.WARNING)
-
-    logger = logging.getLogger()
-    if args.verbose > 0:
-        verbosity = logging.INFO if args.verbose==1 else logging.DEBUG
-        logger.setLevel(verbosity)
-
-    # Call routine
-    ret_val = coadd_prepare(args.infile, args.outfile,
-                            min_cols=args.min_cols,
-                            max_cols=args.max_cols,
-                            weight_threshold = float(args.weight_threshold),
-                            weight_value = float(args.weight_value))
-    sys.exit(ret_val)
+    CoaddPrepare.main()
