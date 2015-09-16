@@ -20,7 +20,7 @@ class CoaddPrepare:
     DEFAULT_MINCOLS = 1   # Narrowest feature to interpolate
     DEFAULT_MAXCOLS = None  # Widest feature to interpolate.  None means no limit.
     DEFAULT_WEIGHT_THRESHOLD = 0. # Upper limit for weight on invalid pixel
-    DEFAULT_WEIGHT_VALUE = 1. # Value placed into masked pixels
+    DEFAULT_WEIGHT_VALUE = -1. # Value placed into masked pixels; negative will copy neighbors' weight
     MASK_VALUE = 1 # Value placed into mask plane for invalid pixel
 
     @classmethod
@@ -52,7 +52,7 @@ class CoaddPrepare:
                         help='Maximum weight value to interpolate over')
         parser.add_argument('--weight_value',
                         default=CoaddPrepare.DEFAULT_WEIGHT_VALUE, 
-                        help='Weight value assigned to interpolated pixels')
+                        help='Weight value assigned to interpolated pixels, <0 to use neighbors')
     
         args = parser.parse_args()
     
@@ -99,10 +99,10 @@ class CoaddPrepare:
             - `min_cols`: Minimum width of region to be interpolated.
             - `max_cols`: Maximum width of region to be interpolated.
             - `weight_threshold`: Upper bound for weight values to mark as bad
-            - `weight_value`: New weight value for bad pixels
+            - `weight_value`: New weight value for bad pixels, enter <0 to use neighbor weights
         """
  
-        logger.info('Preparing coadd {:s} for catalog'.format(imageIn))
+        logger.info('Preparing coadd {:s} for SExtractor'.format(imageIn))
 
         # Read weight plane and science plane
         sci,scihdr = fitsio.read(imageIn, ext=0, header=True)
@@ -144,7 +144,12 @@ class CoaddPrepare:
             sci[ystart[run]:yend[run],xstart[run]] = \
               0.5*(sci[ystart[run]-1,xstart[run]] +
                    sci[yend[run],xstart[run]])
-            wt[ystart[run]:yend[run],xstart[run]] = weight_value
+            if weight_value<0:
+                fill_weight = 0.5*(wt[ystart[run]-1,xstart[run]] \
+                  + wt[yend[run],xstart[run]])
+            else:
+                fill_weight = weight_value
+            wt[ystart[run]:yend[run],xstart[run]] = fill_weight
 
         # Add to image history
         scihdr['HISTORY'] =time.asctime(time.localtime()) + \
