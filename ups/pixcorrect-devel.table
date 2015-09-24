@@ -1,6 +1,10 @@
-setupRequired(shlib 2.1.11+1)
+setupRequired(despyfits 0.2.2+0)
 setupRequired(scipy 0.14.0+5)
 envPrepend(PATH, ${PRODUCT_DIR}/build/scripts-2.7)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/test/unittests)
 envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/build/shlib)
+
+if (FLAVOR == DarwinX86 || FLAVOR == Darwin) {
+   envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/build/shlib)
+}
