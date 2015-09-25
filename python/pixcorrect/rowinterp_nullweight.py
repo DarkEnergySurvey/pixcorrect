@@ -6,7 +6,7 @@ from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
 from despyfits.maskbits import parse_badpix_mask
-from despyfits.DESImage import DESImage, DESBPMImage
+from despyfits.DESImage import DESImage
 from despymisc.miscutils import elapsed_time
 import time
 
@@ -16,13 +16,13 @@ class RowInterpNullWeight(PixCorrectMultistep):
     description = 'Run row_interp and null_weights in one step'
     step_name = config_section
 
-    # Fixing the step name for pass the command-line arguments
+    # Fix the step_name for passing the command-line arguments to the classes
     null_weights.__class__.step_name = config_section
     row_interp.__class__.step_name   = config_section
     
     def __call__(self):
         """
-        Run row_interp and null_weights in one step'
+        Run row_interp and null_weights in one step
         """
 
         t0 = time.time()
@@ -47,10 +47,8 @@ class RowInterpNullWeight(PixCorrectMultistep):
         output_image = self.config.get(self.config_section, 'out')
         self.sci.save(output_image)
         logger.info("Wrote new file: %s" % output_image)
-
         logger.info("Time Total: %s" % elapsed_time(t0))
         
-
         return 0
 
     @classmethod
