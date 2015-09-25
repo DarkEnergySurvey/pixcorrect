@@ -7,10 +7,12 @@ from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
 from despyfits.maskbits import parse_badpix_mask
 from despyfits.DESImage import DESImage, DESBPMImage
+from despymisc.miscutils import elapsed_time
+import time
 
 class RowInterpNullWeight(PixCorrectMultistep):
 
-    config_section = "rinw"
+    config_section = "rowinterp_nullweight"
     description = 'Run row_interp and null_weights in one step'
     step_name = config_section
 
@@ -23,23 +25,31 @@ class RowInterpNullWeight(PixCorrectMultistep):
         Run row_interp and null_weights in one step'
         """
 
+        t0 = time.time()
         # Get the science image
         input_image = self.config.get(self.config_section,'in')
         self.sci = DESImage.load(input_image)
 
         # Run the tasks by calling step_run in each class, passing the
         # triplet image and the config object
+        t1 = time.time()
         logger.info("Running null_weights on: %s" % input_image)
         null_weights.step_run(self.sci,self.config)
+        logger.info("Time NullWeights : %s" % elapsed_time(t1))
 
         # Run row_interp
+        t2 = time.time()
         logger.info("Running row_interp on: %s" % input_image)
         row_interp.step_run(self.sci,self.config)
+        logger.info("Time RowInterp : %s" % elapsed_time(t2))
         
         # Write out the image
         output_image = self.config.get(self.config_section, 'out')
         self.sci.save(output_image)
         logger.info("Wrote new file: %s" % output_image)
+
+        logger.info("Time Total: %s" % elapsed_time(t0))
+        
 
         return 0
 
