@@ -13,7 +13,7 @@ import time
 class RowInterpNullWeight(PixCorrectMultistep):
 
     config_section = "rowinterp_nullweight"
-    description = 'Run row_interp and null_weights in one step'
+    description = 'Perform row_interp and null_weights in one step'
     step_name = config_section
 
     # Fix the step_name for passing the command-line arguments to the classes
@@ -22,7 +22,8 @@ class RowInterpNullWeight(PixCorrectMultistep):
     
     def __call__(self):
         """
-        Run row_interp and null_weights in one step
+        Run row_interp and null_weights in one step, we run the tasks
+        by calling step_run in each class
         """
 
         t0 = time.time()
@@ -30,8 +31,7 @@ class RowInterpNullWeight(PixCorrectMultistep):
         input_image = self.config.get(self.config_section,'in')
         self.sci = DESImage.load(input_image)
 
-        # Run the tasks by calling step_run in each class, passing the
-        # triplet image and the config object
+        # Run null_weights
         t1 = time.time()
         logger.info("Running null_weights on: %s" % input_image)
         null_weights.step_run(self.sci,self.config)
