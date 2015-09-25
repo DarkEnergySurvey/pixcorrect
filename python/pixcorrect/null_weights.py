@@ -21,19 +21,19 @@ class NullWeightsError(Exception):
         return repr(self.value)
 
 class NullWeights(PixCorrectImStep):
-    description = "Set weights to zero based on bitmask, and put high values into saturated pixels"
+    description = "Set weights to zero based on null_mask, and put high values into saturated pixels"
     step_name = config_section
 
     DEFAULT_RESATURATE = False
-    DEFAULT_BITMASK = '0'
+    DEFAULT_NULL_MASK = '0'
     
     @classmethod
-    def __call__(cls, image, bitmask, resaturate):
+    def __call__(cls, image, null_mask, resaturate):
         """Create or update the mask plane of an image
 
         :Parameters:
             - `image`: the DESImage to operate upon.  Mask plane is created if absent
-            - `bitmask`: Integer or list of BADPIX bit names that, when set in mask image,
+            - `null_mask`: Integer or list of BADPIX bit names that, when set in mask image,
                          will put weight=0 for that pixel.
             - `resaturate`: if True, set data for every pixel with BADPIX_SATURATE set
                           to a value above the SATURATE keyword
@@ -43,16 +43,16 @@ class NullWeights(PixCorrectImStep):
         if image.mask is None:
             raise NullWeightsError('Mask is missing in image')
 
-        if bitmask!=0:
+        if null_mask!=0:
             logger.info('Nulling weight image from mask bits')
             
             if image.weight is None and image.variance is None:
                 raise NullWeightsError('Weight is missing in image')
             weight = image.get_weight()
-            kill = np.array( image.mask & bitmask, dtype=bool)
+            kill = np.array( image.mask & null_mask, dtype=bool)
             weight[kill] = 0.
             image['HISTORY'] =time.asctime(time.localtime()) + \
-                              ' Null weights with mask 0x{:04X}'.format(bitmask)
+                              ' Null weights with mask 0x{:04X}'.format(null_mask)
             logger.debug('Finished nulling weight image')
             
         if resaturate:
@@ -90,17 +90,17 @@ class NullWeights(PixCorrectImStep):
             - `config`: the configuration from which to get other parameters
 
         """
-        if config.has_option(cls.step_name, 'bitmask'):
-            bitmask = parse_badpix_mask(config.get(cls.step_name, 'bitmask'))
+        if config.has_option(cls.step_name, 'null_mask'):
+            null_mask = parse_badpix_mask(config.get(cls.step_name, 'null_mask'))
         else:
-            bitmask = parse_badpix_mask(cls.DEFAULT_BITMASK)
+            null_mask = parse_badpix_mask(cls.DEFAULT_NULL_MASK)
 
         if config.has_option(cls.step_name, 'resaturate'):
             resaturate = config.getboolean(cls.step_name, 'resaturate')
         else:
             resaturate = cls.DEFAULT_RESATURATE
 
-        ret_code = cls.__call__(image, bitmask, resaturate)
+        ret_code = cls.__call__(image, null_mask, resaturate)
         return ret_code
 
     @classmethod
@@ -109,7 +109,7 @@ class NullWeights(PixCorrectImStep):
         """
         parser.add_argument('--resaturate', action='store_true',
                             help='Put saturated value in BADPIX_SATURATE pixels')
-        parser.add_argument('--bitmask', default=cls.DEFAULT_BITMASK,
+        parser.add_argument('--null_mask', default=cls.DEFAULT_NULL_MASK,
                             help='Names of mask bits to null (or an integer mask)')
 
 null_weights = NullWeights()
