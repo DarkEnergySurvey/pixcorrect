@@ -165,13 +165,14 @@ class PixCorrectIm(PixCorrectMultistep):
         #                                    resaturate=True))
         # --------------------------------------------------------------------------
 
-        # This new call should take care of both --resaturate and --null_mask
-        if self.do_step('null_mask') or self.do_step('resaturate'):
-            self._check_return(null_weights.step_run(self.sci,self.config))
-        
+        ### Do add_weight before null_weight step, else it will overwrite the nulls
         if self.do_step('addweight'):
             self._check_return(add_weight(self.sci, self.flat))
         self.clean_im('flat')
+
+        # This new call should take care of both --resaturate and --null_mask
+        if self.do_step('null_mask') or self.do_step('resaturate'):
+            self._check_return(null_weights.step_run(self.sci,self.config))
 
         out_fname = self.config.get('pixcorrect_im', 'out')
         self.sci.save(out_fname)
