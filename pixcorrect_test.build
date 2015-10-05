@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+echo -n "Enter path to PRODUCT_DIR: "
+read product_dir
+export PRODUCT_DIR=$product_dir
+echo "Will Install to: $PRODUCT_DIR"
+
+source $EUPS_DIR/desdm_eups_setup.sh
+setup -v -r .
+export PYTHONPATH=$PRODUCT_DIR/python:$PYTHONPATH
+python setup.py install --prefix=$PRODUCT_DIR --install-lib=$PRODUCT_DIR/python
+
+echo " ----------------------------------------"
+echo " Make sure you setup pixcorrect by doing:"
+echo "    setup -v -r $PRODUCT_DIR"
+echo " "
