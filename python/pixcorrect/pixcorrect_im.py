@@ -156,11 +156,18 @@ class PixCorrectIm(PixCorrectMultistep):
             self._check_return(starflat_correct(self.sci, self.starflat))
         self.clean_im('starflat')
 
+        # --------------------------------------------------------------------------
+        # Old call
         # Re-saturate pixels (??? Can also null weights at selected mask bits here)
-        if self.do_step('resaturate'):
-            self._check_return(null_weights(self.sci,
-                                            bitmask=0,
-                                            resaturate=True))
+        #if self.do_step('resaturate'):
+        #    self._check_return(null_weights(self.sci,
+        #                                    bitmask=0,
+        #                                    resaturate=True))
+        # --------------------------------------------------------------------------
+
+        # This new call should take care of both --resaturate and --null_mask
+        if self.do_step('null_mask') or self.do_step('resaturate'):
+            self._check_return(null_weights.step_run(self.sci,self.config))
         
         if self.do_step('addweight'):
             self._check_return(add_weight(self.sci, self.flat))
@@ -200,10 +207,17 @@ class PixCorrectIm(PixCorrectMultistep):
                             help='MiniDECam file holding sky fit coefficients')
         parser.add_argument('--starflat', default=None,
                             help='Star flat correction image')
-        parser.add_argument('--resaturate', action='store_true',
-                            help='Raise all saturated pixels above SATURATE value')
         parser.add_argument('--addweight', action='store_true', default=False,
                             help='Add a weight map to the image if none exists')
+
+        # Adds --resaturate and --null_mask from null_weights class
+        null_weights.add_step_args(parser)
+
+        # Optionally we can do this manually -- but it looks ugly
+        #parser.add_argument('--resaturate', action='store_true',
+        #                    help='Raise all saturated pixels above SATURATE value')
+        #parser.add_argument('--null_mask', default=null_weights.DEFAULT_NULL_MASK,
+        #                    help='Names of mask bits to null (or an integer mask)')
         return
 
 if __name__ == '__main__':

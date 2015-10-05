@@ -6,7 +6,7 @@ from os import path
 import numpy as np
 from pixcorrect.corr_util import logger
 from despyfits.DESImage import DESImage
-from despyfits.maskbits import *
+from despyfits import maskbits
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import decaminfo
 import time
@@ -91,9 +91,9 @@ class NullWeights(PixCorrectImStep):
 
         """
         if config.has_option(cls.step_name, 'null_mask'):
-            null_mask = parse_badpix_mask(config.get(cls.step_name, 'null_mask'))
+            null_mask = maskbits.parse_badpix_mask(config.get(cls.step_name, 'null_mask'))
         else:
-            null_mask = parse_badpix_mask(cls.DEFAULT_NULL_MASK)
+            null_mask = maskbits.parse_badpix_mask(cls.DEFAULT_NULL_MASK)
 
         if config.has_option(cls.step_name, 'resaturate'):
             resaturate = config.getboolean(cls.step_name, 'resaturate')
