@@ -184,6 +184,9 @@ class SkySubtract(PixCorrectImStep):
             # Run null_mask or resaturate if requested in the command-line
             if cls.do_step('null_mask') or cls.do_step('resaturate'):
                 logger.info("Running null_weights")
+                # We need to fix the step_name if we want to call 'step_run'
+                null_weights.__class__.step_name = config_section
+                #null_weights.__class__.step_name = cls.config_section
                 null_weights.step_run(image,cls.config)
 
         ret_code=0
