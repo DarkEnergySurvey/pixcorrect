@@ -172,6 +172,9 @@ class PixCorrectIm(PixCorrectMultistep):
 
         # This new call should take care of both --resaturate and --null_mask
         if self.do_step('null_mask') or self.do_step('resaturate'):
+            # We need to fix the step_name if we want to call 'step_run'
+            null_weights.__class__.step_name = self.config_section
+            logger.info("Running null_weights")
             self._check_return(null_weights.step_run(self.sci,self.config))
 
         out_fname = self.config.get('pixcorrect_im', 'out')

@@ -14,9 +14,11 @@ from pixcorrect import proddir
 from pixcorrect.corr_util import logger, do_once, items_must_match
 from despyfits.DESImage import DESDataImage, DESImage, weight_dtype, section2slice
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
+from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 from pixcorrect import skyinfo
 from pixcorrect.skyinfo import SkyError
 from pixcorrect import decaminfo
+from pixcorrect.null_weights import null_weights
 
 # Which section of the config file to read for this step
 config_section = 'skysubtract'
@@ -25,7 +27,8 @@ class SkySubtract(PixCorrectImStep):
     description = "Subtract sky from images based on principal-component fit and calculate" +\
       " weight image"
     
-    step_name = config_section
+    step_name      = config_section
+    config_section = config_section
     
     @classmethod
     @do_once(1,'DESSKYSB')
@@ -45,7 +48,7 @@ class SkySubtract(PixCorrectImStep):
                          'all' to use all counts
             - `dome`: DESImage for the dome flat, needed if weight is not 'none'.
         """
- 
+
         if weight=='sky' and fit_filename is None:
             raise SkyError('Cannot make sky-only weight map without doing sky subtraction')
         
@@ -178,6 +181,11 @@ class SkySubtract(PixCorrectImStep):
             
             logger.debug('Finished weight construction')
 
+            # Run null_mask or resaturate if requested in the command-line
+            if cls.do_step('null_mask') or cls.do_step('resaturate'):
+                logger.info("Running null_weights")
+                null_weights.step_run(image,cls.config)
+
         ret_code=0
         return ret_code
 
@@ -189,6 +197,9 @@ class SkySubtract(PixCorrectImStep):
             - `config`: the configuration from which to get other parameters
 
         """
+
+        # Passing config to the class
+        cls.config = config
 
         if config.has_option(cls.step_name,'fitfilename'):
             fit_filename = config.get(cls.step_name, 'fitfilename')
@@ -228,7 +239,26 @@ class SkySubtract(PixCorrectImStep):
                             default=skyinfo.DEFAULT_WEIGHT,
                             help='Construct weight from sky photons, ' \
                                  'from all photons, or not at all')
+        # Adding the null_weights options
+        null_weights.add_step_args(parser)
+
         return
+
+    @classmethod
+    def do_step(cls, step_name):
+        if not cls.config.has_option(cls.config_section, step_name):
+            return False
+
+        try:
+            # If the parameter is a boolean, interpret is
+            # as an on/off switch
+            doit = cls.config.getboolean(cls.config_section, step_name)
+            return doit
+        except:
+            # Otherwise, interpret it as a value associated with
+            # the step, and assume we want to perform the step
+            return True
+
 
 sky_subtract = SkySubtract()
 

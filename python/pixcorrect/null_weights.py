@@ -57,7 +57,7 @@ class NullWeights(PixCorrectImStep):
             
         if resaturate:
             logger.info('Re-saturating pixels from mask bits')
-            sat = np.array( image.mask & BADPIX_SATURATE, dtype=bool)
+            sat = np.array( image.mask & maskbits.BADPIX_SATURATE, dtype=bool)
             try:
                 saturation_level = image['SATURATE']
             except (ValueError,KeyError):
@@ -90,6 +90,14 @@ class NullWeights(PixCorrectImStep):
             - `config`: the configuration from which to get other parameters
 
         """
+        # Debug config
+        #print "###### CONFIG"
+        #for section in config.sections():
+        #    print section
+        #    for option in config.options(section):
+        #        print " ", option, "=", config.get(section, option)
+        #print "########"
+        
         if config.has_option(cls.step_name, 'null_mask'):
             null_mask = maskbits.parse_badpix_mask(config.get(cls.step_name, 'null_mask'))
         else:
