@@ -43,7 +43,7 @@ class SkyCombine(PixCorrectDriver):
         for f in in_filenames:
             try:
                 small = DESDataImage.load(f)
-            except ValueError as v:
+            except (ValueError,IOError) as v:
                 # A missing minisky file is not fatal:
                 logger.warning('SkyCombine could not load minisky '+f)
                 continue
@@ -107,8 +107,8 @@ class SkyCombine(PixCorrectDriver):
         else:
             mask_value = skyinfo.DEFAULT_MASK_VALUE
 
-        if config.has_option(cls.step_name,'invalid'):
-            baddet = config.get(cls.step_name, 'invalid')
+        if config.has_option(cls.step_name,'ignore'):
+            baddet = config.get(cls.step_name, 'ignore')
         else:
             baddet = skyinfo.DEFAULT_IGNORE
         invalid = baddet.split(',')
