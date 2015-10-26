@@ -89,7 +89,7 @@ class SkyCombine(PixCorrectDriver):
                             help='Filename for combined minisky FITS image')
         parser.add_argument('--mask_value', type=float, default=skyinfo.DEFAULT_MASK_VALUE,
                             help='Value of pixels without valid sky information')
-        parser.add_argument('--ignore', type=str, default=skyinfo.DEFAULT_IGNORE,
+        parser.add_argument('--invalid', type=str, default=skyinfo.DEFAULT_IGNORE,
                             help='Value(s) of DETPOS to ignore in sky image')
         return
 
@@ -107,8 +107,8 @@ class SkyCombine(PixCorrectDriver):
         else:
             mask_value = skyinfo.DEFAULT_MASK_VALUE
 
-        if config.has_option(cls.step_name,'ignore'):
-            baddet = config.get(cls.step_name, 'ignore')
+        if config.has_option(cls.step_name,'invalid'):
+            baddet = config.get(cls.step_name, 'invalid')
         else:
             baddet = skyinfo.DEFAULT_IGNORE
         invalid = baddet.split(',')
