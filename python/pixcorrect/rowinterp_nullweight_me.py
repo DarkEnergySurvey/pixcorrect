@@ -69,17 +69,20 @@ class RowInterpNullWeight(PixCorrectMultistep):
         cls.weight_custom = np.copy(cls.sci.weight)
         null_mask = parse_badpix_mask(cls.config.get(cls.config_section, 'null_mask'))
         star_mask = parse_badpix_mask('STAR') # 32
+        badamp_mask = parse_badpix_mask('BADAMP') 
+        badamp    = np.array( cls.sci.mask & badamp_mask, dtype=bool)
         kill      = np.array( cls.sci.mask & null_mask, dtype=bool)
         stars     = np.array( cls.sci.mask & star_mask, dtype=bool)
-        cls.weight_custom[kill]  = 0.0
-        cls.weight_custom[stars] = np.copy(cls.sci.weight[stars])
+        cls.weight_custom[kill]   = 0.0
+        cls.weight_custom[stars]  = np.copy(cls.sci.weight[stars])
+        cls.weight_custom[badamp] = 0.0
 
     def custom_write(cls,output_image):
         # Write out the image using fitsio, but skipping the mask as we won't need it.
         ofits = fitsio.FITS(output_image,'rw',clobber=True)
-        ofits.write(cls.sci.data,  header=cls.sci.header)
-        ofits.write(cls.sci.weight,header=cls.sci.weight_hdr)
-        ofits.write(cls.weight_custom,header=cls.sci.weight_hdr)
+        ofits.write(cls.sci.data,  extname='SCI', header=cls.sci.header)
+        ofits.write(cls.sci.weight,extname='WGT',header=cls.sci.weight_hdr)
+        ofits.write(cls.weight_custom,extname='WGT_ME',header=cls.sci.weight_hdr)
         ofits.close()
 
     @classmethod
