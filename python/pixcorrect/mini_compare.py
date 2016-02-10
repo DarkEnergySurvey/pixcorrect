@@ -44,7 +44,7 @@ class MiniCompare(PixCorrectImStep):
         ref = skyinfo.MiniDecam.load(ref_filename)
 
         if indata.blocksize != ref.blocksize or indata.invalid != ref.invalid or indata.halfS7 != ref.halfS7:
-            raise SkyError("Input and reference are not matching compressions of DECam")
+            raise skyinfo.SkyError("Input and reference are not matching compressions of DECam")
 
         resid = indata.vector() / ref.vector()
         if edge is not None and edge>0:

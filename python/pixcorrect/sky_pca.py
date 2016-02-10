@@ -114,7 +114,7 @@ class SkyPCA(PixCorrectDriver):
  
         logger.info('Collecting images for PCA')
         if npc > skyinfo.MAX_PC:
-            raise SkyError("Requested number of sky pc's {:d} is above MAX_PC".format(npc))
+            raise skyinfo.SkyError("Requested number of sky pc's {:d} is above MAX_PC".format(npc))
         mm = []  # will hold the data vectors for each exposure
         expnums = []  # Collect the exposure numbers of exposures being used
         data_length = None
@@ -127,7 +127,7 @@ class SkyPCA(PixCorrectDriver):
                 data_length = len(v)
             elif len(v) != data_length:
                 logger.error('Mismatched sky data vector length in file ' + f)
-                raise SkyError('Mismatched sky data vector length in file ' + f)
+                raise skyinfo.SkyError('Mismatched sky data vector length in file ' + f)
             # Also check for agreement of the mini-sky setup
             if blocksize is None:
                 blocksize = mini.blocksize
@@ -142,7 +142,7 @@ class SkyPCA(PixCorrectDriver):
                   or mini.invalid!=invalid \
                   or mini.halfS7!=halfS7:
                   logger.error('Mismatched minisky configuration in file ' + f)
-                  raise SkyError('Mismatched minisky configuration in file ' + f)
+                  raise skyinfo.SkyError('Mismatched minisky configuration in file ' + f)
                 try:
                     # Die if there is a filter mismatch among exposures
                     items_must_match(hdr,mini.header,'BAND')

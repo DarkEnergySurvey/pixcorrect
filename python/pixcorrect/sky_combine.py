@@ -56,7 +56,7 @@ class SkyCombine(PixCorrectDriver):
                 out.copy_header_info(small, cls.propagate, require=False)
                 
             if blocksize != out.blocksize:
-                raise SkyError('Mismatched blocksizes for SkyCombine')
+                raise skyinfo.SkyError('Mismatched blocksizes for SkyCombine')
             out.fill(small.data,small['DETPOS'].strip())
             # Issue warnings for mismatches of data, but skip if
             # quantities are not in headers
