@@ -4,14 +4,14 @@
 #read product_dir
 #export PRODUCT_DIR=$product_dir
 
-export PRODUCT_DIR=$HOME/tmp/pixcorrect
+export PRODUCT_DIR=$HOME/build-test/pixcorrect
 echo "Will Install to: $PRODUCT_DIR"
 
 source $EUPS_DIR/desdm_eups_setup.sh
 setup -v despymisc 0.2.3+3
 setup -v scipy 0.14.0+6
-setup -v -r ~/tmp/imsupport
-setup -v -r ~/tmp/despyfits
+#setup -v despyfits 0.3.1+2
+setup -v -r ~/build-test/despyfits
 
 export PYTHONPATH=$PRODUCT_DIR/python:$PYTHONPATH
 python setup.py install --prefix=$PRODUCT_DIR --install-lib=$PRODUCT_DIR/python

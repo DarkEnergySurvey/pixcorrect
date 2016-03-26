@@ -8,6 +8,7 @@ from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 from despyfits.maskbits import parse_badpix_mask
 from despyfits.DESImage import DESImage
 from despymisc.miscutils import elapsed_time
+from despyfits import updateWCS 
 import time
 
 import fitsio
@@ -19,6 +20,8 @@ class RowInterpNullWeight(PixCorrectMultistep):
     description = 'Perform row_interp and null_weights in one step'
     step_name = config_section
     DEFAULT_ME_PREPARE = False
+    DEFAULT_HEADFILE = False
+    DEFAULT_HDUPCFG = False
 
     # Fix the step_name for passing the command-line arguments to the classes
     null_weights.__class__.step_name = config_section
@@ -34,8 +37,21 @@ class RowInterpNullWeight(PixCorrectMultistep):
         input_image = self.config.get(self.config_section,'in')
         self.sci = DESImage.load(input_image)
 
+        # Get verbose
+        verbose = self.config.get(self.config_section,'verbose')
+
         # Check if we want special multi-epoch weighting
         me_prepare  = self.config.getboolean(self.config_section, 'me_prepare')
+
+        # Get optional headfile and hdupcfg config file, first we try to get them as boolean, then as strings
+        headfile = get_safe_boolean('headfile',self.config,self.config_section)
+        hdupcfg  = get_safe_boolean('hdupcfg',self.config,self.config_section)
+
+        # Update the header if both headfile and hdupcfg are present
+        if  headfile and hdupcfg:
+            logger.info("Will update image header with scamp .head file %s" % headfile)
+            self.sci = updateWCS.run_update(self.sci,headfile=headfile,hdupcfg=hdupcfg,verbose=verbose)
+        
         if me_prepare:
             self.custom_weight(input_image)
         
@@ -85,6 +101,8 @@ class RowInterpNullWeight(PixCorrectMultistep):
         ofits.write(cls.weight_custom,extname='WGT_ME',header=cls.sci.weight_hdr)
         ofits.close()
 
+
+
     @classmethod
     def add_step_args(cls, parser):
         """Add arguments for null_weights and row_interp
@@ -93,7 +111,20 @@ class RowInterpNullWeight(PixCorrectMultistep):
         row_interp.add_step_args(parser)
         parser.add_argument('--me_prepare', action='store_true',default=cls.DEFAULT_ME_PREPARE,
                             help='Run custom weights for STAR and do not write MSK plane for multi-epoch (me)')
+        parser.add_argument('--headfile', action='store', default=cls.DEFAULT_HEADFILE,
+                            help='Headfile (containing most update information)')
+        parser.add_argument('--hdupcfg', action='store', default=cls.DEFAULT_HDUPCFG,
+                            help='Configuration file for header update')
         return
+
+def get_safe_boolean(name,config,config_section):
+
+    """ Get boolean first and if fail, get from config"""
+    try:
+        param = config.getboolean(config_section,name)
+    except:
+        param = config.get(config_section,name)
+    return param
 
 if __name__ == '__main__':
     RowInterpNullWeight.main()
