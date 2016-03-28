@@ -16,7 +16,7 @@ import numpy as np
 
 class CoaddRowInterpNullWeight(PixCorrectMultistep):
 
-    config_section = "rowinterp_nullweight"
+    config_section = "coadd_nwgit"
     description = 'Perform row_interp and null_weights in one step'
     step_name = config_section
     DEFAULT_ME_PREPARE = False
@@ -29,6 +29,7 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
     null_weights.__class__.step_name = config_section
     row_interp.__class__.step_name   = config_section
     
+    
     def __call__(self):
         """
         Run row_interp and null_weights in one step, we run the tasks
@@ -40,21 +41,19 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         self.sci = DESImage.load(input_image)
 
         # Get verbose
-        verbose = self.config.get(self.config_section,'verbose')
+        try:
+            verbose = self.config.get(self.config_section,'verbose')
+        except:
+            verbose = False
 
         # Check if we want special multi-epoch weighting
         me_prepare  = self.config.getboolean(self.config_section, 'me_prepare')
 
-        # Get optional config file, first we try to get them as boolean, then as strings
-        headfile = get_safe_boolean('headfile',self.config,self.config_section)
-        hdupcfg  = get_safe_boolean('hdupcfg',self.config,self.config_section)
-
+        # Add TILENAME and TILEID to sci header (optional) if required
         self.update_sci_header(input_image)
 
-        # Update the header if both headfile and hdupcfg are present
-        if  headfile and hdupcfg:
-            logger.info("Will update image header with scamp .head file %s" % headfile)
-            self.sci = updateWCS.run_update(self.sci,headfile=headfile,hdupcfg=hdupcfg,verbose=verbose)
+        # Update the header if both headfile and hdupcfg are present (optional)
+        self.update_wcs_header(input_image,verbose=verbose)
         
         if me_prepare:
             self.custom_weight(input_image)
@@ -80,9 +79,20 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
 
         logger.info("Wrote new file: %s" % output_image)
         logger.info("Time Total: %s" % elapsed_time(t0))
-        
+
         return 0
 
+    def update_wcs_header(cls,input_image,verbose=False):
+
+        # Get optional config file, first we try to get them as boolean, then as strings
+        headfile = get_safe_boolean('headfile',cls.config,cls.config_section)
+        hdupcfg  = get_safe_boolean('hdupcfg',cls.config,cls.config_section)
+
+        # Update the header if both headfile and hdupcfg are present
+        if  headfile and hdupcfg:
+            logger.info("Will update image header with scamp .head file %s" % headfile)
+            cls.sci = updateWCS.run_update(cls.sci,headfile=headfile,hdupcfg=hdupcfg,verbose=verbose)
+    
     def update_sci_header(cls,input_image):
         
         tilename = get_safe_boolean('tilename',cls.config,cls.config_section)
@@ -91,7 +101,7 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
             record={'name':'TILENAME', 'value':tilename, 'comment':'DES Tilename'}
             cls.sci.header.add_record(record)
         if tileid:
-            record={'name':'TILEID', 'value':tileid, 'comment':'Tile ID for DES Tilename'}
+            record={'name':'TILEID', 'value':int(tileid), 'comment':'Tile ID for DES Tilename'}
             cls.sci.header.add_record(record)
 
 
@@ -131,7 +141,7 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
                             help='Configuration file for header update')
         parser.add_argument('--tilename', action='store', default=cls.DEFAULT_TILENAME,
                             help='Add (optional) TILENAME to SCI header')
-        parser.add_argument('--tileid', action='store', default=cls.DEFAULT_TILEID,
+        parser.add_argument('--tileid', action='store', type=int, default=cls.DEFAULT_TILEID,
                             help='Add (optional) TILENAME to SCI header')
         return
 
