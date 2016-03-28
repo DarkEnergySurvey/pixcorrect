@@ -33,7 +33,7 @@ class SkySubtract(PixCorrectImStep):
     @classmethod
     @do_once(1,'DESSKYSB')
     def __call__(cls, image, fit_filename, pc_filename,
-                weight, dome):
+                weight, dome, skymodel_filename):
         """
         Subtract sky from image using previous principal-components fit. Optionally
         build weight image from fitted sky or all counts, in which case the dome flat
@@ -47,6 +47,7 @@ class SkySubtract(PixCorrectImStep):
             - `weight`: 'none' to skip weights, 'sky' to calculate weight at sky level,
                          'all' to use all counts
             - `dome`: DESImage for the dome flat, needed if weight is not 'none'.
+            - `skymodel_filename`: optional output filename for 'sky' 
         """
 
         if weight=='sky' and fit_filename is None:
@@ -76,7 +77,25 @@ class SkySubtract(PixCorrectImStep):
             image.write_key('SKYSBFIL', path.basename(pc_filename), comment = 'Sky subtraction template file')
             for i,c in enumerate(mini.coeffs):
                 image.write_key('SKYPC{:>02d}'.format(i), c, comment='Sky template coefficient')
-            logger.debug('Finished sky subtraction')
+            logger.info('Finished sky subtraction')
+#
+#           Optionally write the sky model that was subtracted from the image.
+#
+            if (skymodel_filename is not None):
+                # Create HDU for output skymodel, add some header info, save output to file
+                logger.info('Optional output of skymodel requested')
+                skymodel_image = DESDataImage(sky)
+                skymodel_image.write_key('SKYSBFIL', path.basename(pc_filename), comment = 'Sky subtraction template file')
+                for i,c in enumerate(mini.coeffs):
+                    skymodel_image.write_key('SKYPC{:>02d}'.format(i), c, comment='Sky template coefficient')
+                skymodel_image.write_key('BAND', image['BAND'], comment = 'Band')
+                skymodel_image.write_key('EXPNUM', image['EXPNUM'], comment = 'Exposure Number')
+                skymodel_image.write_key('CCDNUM', image['CCDNUM'], comment = 'CCD Number')
+                skymodel_image.write_key('NITE', image['NITE'], comment = 'Night')
+#               skymodel_image.copy_header_info(image, cls.propagate, require=False)
+                ## ?? catch exception from write error below?
+                skymodel_image.save(skymodel_filename)
+ 
         else:
             sky = None
             
@@ -222,10 +241,15 @@ class SkySubtract(PixCorrectImStep):
         else:
             dome = None
 
+        if config.has_option(cls.step_name,'skymodel'):
+            skymodel_filename = config.get(cls.step_name,'skymodel')
+        else:
+            skymodel_filename = None
+
         logger.info('Sky fitting output to %s' % image)
     
         ret_code = cls.__call__(image, fit_filename, pc_filename,
-                                weight, dome)
+                                weight, dome, skymodel_filename)
         return ret_code
 
     @classmethod
@@ -242,6 +266,8 @@ class SkySubtract(PixCorrectImStep):
                             default=skyinfo.DEFAULT_WEIGHT,
                             help='Construct weight from sky photons, ' \
                                  'from all photons, or not at all')
+        parser.add_argument('--skymodel',type=str,
+                            help='Optional output file showing the model sky that was subtracted.')
         # Adding the null_weights options
         null_weights.add_step_args(parser)
 
