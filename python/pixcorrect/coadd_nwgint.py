@@ -14,7 +14,7 @@ import time
 import fitsio
 import numpy as np
 
-class RowInterpNullWeight(PixCorrectMultistep):
+class CoaddRowInterpNullWeight(PixCorrectMultistep):
 
     config_section = "rowinterp_nullweight"
     description = 'Perform row_interp and null_weights in one step'
@@ -22,6 +22,8 @@ class RowInterpNullWeight(PixCorrectMultistep):
     DEFAULT_ME_PREPARE = False
     DEFAULT_HEADFILE = False
     DEFAULT_HDUPCFG = False
+    DEFAULT_TILENAME = False
+    DEFAULT_TILEID = False
 
     # Fix the step_name for passing the command-line arguments to the classes
     null_weights.__class__.step_name = config_section
@@ -43,9 +45,11 @@ class RowInterpNullWeight(PixCorrectMultistep):
         # Check if we want special multi-epoch weighting
         me_prepare  = self.config.getboolean(self.config_section, 'me_prepare')
 
-        # Get optional headfile and hdupcfg config file, first we try to get them as boolean, then as strings
+        # Get optional config file, first we try to get them as boolean, then as strings
         headfile = get_safe_boolean('headfile',self.config,self.config_section)
         hdupcfg  = get_safe_boolean('hdupcfg',self.config,self.config_section)
+
+        self.update_sci_header(input_image)
 
         # Update the header if both headfile and hdupcfg are present
         if  headfile and hdupcfg:
@@ -79,6 +83,18 @@ class RowInterpNullWeight(PixCorrectMultistep):
         
         return 0
 
+    def update_sci_header(cls,input_image):
+        
+        tilename = get_safe_boolean('tilename',cls.config,cls.config_section)
+        tileid   = get_safe_boolean('tileid',cls.config,cls.config_section)
+        if tilename:
+            record={'name':'TILENAME', 'value':tilename, 'comment':'DES Tilename'}
+            cls.sci.header.add_record(record)
+        if tileid:
+            record={'name':'TILEID', 'value':tileid, 'comment':'Tile ID for DES Tilename'}
+            cls.sci.header.add_record(record)
+
+
     def custom_weight(cls,input_image):
         # Make custom weight, that will not zero STAR maskbit
         logger.info("Will perform special weighting for multi-epoch input on %s" % input_image)
@@ -101,8 +117,6 @@ class RowInterpNullWeight(PixCorrectMultistep):
         ofits.write(cls.weight_custom,extname='WGT_ME',header=cls.sci.weight_hdr)
         ofits.close()
 
-
-
     @classmethod
     def add_step_args(cls, parser):
         """Add arguments for null_weights and row_interp
@@ -115,6 +129,10 @@ class RowInterpNullWeight(PixCorrectMultistep):
                             help='Headfile (containing most update information)')
         parser.add_argument('--hdupcfg', action='store', default=cls.DEFAULT_HDUPCFG,
                             help='Configuration file for header update')
+        parser.add_argument('--tilename', action='store', default=cls.DEFAULT_TILENAME,
+                            help='Add (optional) TILENAME to SCI header')
+        parser.add_argument('--tileid', action='store', default=cls.DEFAULT_TILEID,
+                            help='Add (optional) TILENAME to SCI header')
         return
 
 def get_safe_boolean(name,config,config_section):

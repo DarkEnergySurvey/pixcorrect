@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.coadd_nwgint import CoaddRowInterpNullWeight
+
+if __name__ == '__main__':
+       CoaddRowInterpNullWeight.main()
