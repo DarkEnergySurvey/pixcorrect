@@ -5,21 +5,26 @@ from pixcorrect.row_interp   import row_interp
 from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
+from despyastro.CCD_corners import update_DESDM_corners
+
+import despyfits
 from despyfits.maskbits import parse_badpix_mask
-from despyfits.DESImage import DESImage
+from despyfits.DESImage import DESImage,update_hdr_compression,insert_eupspipe
 from despymisc.miscutils import elapsed_time
 from despyfits import updateWCS 
 import time
 
 import fitsio
 import numpy as np
+import copy
 
 class CoaddRowInterpNullWeight(PixCorrectMultistep):
+
+    """Run custom weights for STAR and do not write MSK plane for multi-epoch (me)'"""
 
     config_section = "coadd_nwgit"
     description = 'Perform row_interp and null_weights in one step'
     step_name = config_section
-    DEFAULT_ME_PREPARE = False
     DEFAULT_HEADFILE = False
     DEFAULT_HDUPCFG = False
     DEFAULT_TILENAME = False
@@ -46,17 +51,14 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         except:
             verbose = False
 
-        # Check if we want special multi-epoch weighting
-        me_prepare  = self.config.getboolean(self.config_section, 'me_prepare')
-
         # Add TILENAME and TILEID to sci header (optional) if required
         self.update_sci_header(input_image)
 
-        # Update the header if both headfile and hdupcfg are present (optional)
+        # Update the header wcs if both headfile and hdupcfg are present (optional)
         self.update_wcs_header(input_image,verbose=verbose)
         
-        if me_prepare:
-            self.custom_weight(input_image)
+        # Create the custon weight for SWArp/SExtractor combination
+        self.custom_weight(input_image)
         
         # Run null_weights
         t1 = time.time()
@@ -71,12 +73,10 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         logger.info("Time RowInterp : %s" % elapsed_time(t2))
         
         output_image = self.config.get(self.config_section, 'out')
-        # Special write out
-        if me_prepare:
-            self.custom_write(output_image)
-        else:
-            self.sci.save(output_image)
 
+        # Special write out with custom WGT_ME plabe
+        self.custom_write(output_image)
+        
         logger.info("Wrote new file: %s" % output_image)
         logger.info("Time Total: %s" % elapsed_time(t0))
 
@@ -108,23 +108,41 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
     def custom_weight(cls,input_image):
         # Make custom weight, that will not zero STAR maskbit
         logger.info("Will perform special weighting for multi-epoch input on %s" % input_image)
-        cls.weight_custom = np.copy(cls.sci.weight)
+        cls.sci.weight_custom = np.copy(cls.sci.weight)
+        # Make a copy of the weight_hdr to use
+        cls.sci.weight_custom_hdr =  copy.copy(cls.sci.weight_hdr)
         null_mask = parse_badpix_mask(cls.config.get(cls.config_section, 'null_mask'))
         star_mask = parse_badpix_mask('STAR') # 32
         badamp_mask = parse_badpix_mask('BADAMP') 
         badamp    = np.array( cls.sci.mask & badamp_mask, dtype=bool)
         kill      = np.array( cls.sci.mask & null_mask, dtype=bool)
         stars     = np.array( cls.sci.mask & star_mask, dtype=bool)
-        cls.weight_custom[kill]   = 0.0
-        cls.weight_custom[stars]  = np.copy(cls.sci.weight[stars])
-        cls.weight_custom[badamp] = 0.0
+        cls.sci.weight_custom[kill]   = 0.0
+        cls.sci.weight_custom[stars]  = np.copy(cls.sci.weight[stars])
+        cls.sci.weight_custom[badamp] = 0.0
 
     def custom_write(cls,output_image):
         # Write out the image using fitsio, but skipping the mask as we won't need it.
         ofits = fitsio.FITS(output_image,'rw',clobber=True)
+
+        # Here we mimick the steps followed by DESImage.save()
+        # SCI
+        logger.info("Creating SCI HDU and relevant FZ*/DES_EXT/EXTNAME keywords")
+        cls.sci.header = update_hdr_compression(cls.sci.header,'SCI')
+        logger.info("Calculating CCD corners/center/extern keywords for SCI HDU ")
+        cls.sci.header = update_DESDM_corners(cls.sci.header,get_extent=True, verb=False)
+        if despyfits.DESImage.pipekeys_write:
+            logger.info("Inserting EUPS PIPEPROD and PIPEVER to SCI HDU")
+            cls.sci.header = insert_eupspipe(cls.sci.header)
         ofits.write(cls.sci.data,  extname='SCI', header=cls.sci.header)
+        # WGT
+        logger.info("Creating WGT HDU and relevant FZ*/DES_EXT/EXTNAME keywords")
+        cls.sci.weight_hdr = update_hdr_compression(cls.sci.weight_hdr,'WGT')
         ofits.write(cls.sci.weight,extname='WGT',header=cls.sci.weight_hdr)
-        ofits.write(cls.weight_custom,extname='WGT_ME',header=cls.sci.weight_hdr)
+        # WGT_ME 
+        logger.info("Creating WGT_ME HDU and relevant FZ*/DES_EXT/EXTNAME keywords")
+        cls.sci.weight_custom_hdr = update_hdr_compression(cls.sci.weight_custom_hdr,'WGT')
+        ofits.write(cls.sci.weight_custom,extname='WGT_ME',header=cls.sci.weight_custom_hdr)
         ofits.close()
 
     @classmethod
@@ -133,8 +151,6 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         """
         null_weights.add_step_args(parser)
         row_interp.add_step_args(parser)
-        parser.add_argument('--me_prepare', action='store_true',default=cls.DEFAULT_ME_PREPARE,
-                            help='Run custom weights for STAR and do not write MSK plane for multi-epoch (me)')
         parser.add_argument('--headfile', action='store', default=cls.DEFAULT_HEADFILE,
                             help='Headfile (containing most update information)')
         parser.add_argument('--hdupcfg', action='store', default=cls.DEFAULT_HDUPCFG,
