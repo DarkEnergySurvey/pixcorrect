@@ -16,7 +16,6 @@ import time
 
 import fitsio
 import numpy as np
-import copy
 
 class CoaddRowInterpNullWeight(PixCorrectMultistep):
 
@@ -109,8 +108,6 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         # Make custom weight, that will not zero STAR maskbit
         logger.info("Will perform special weighting for multi-epoch input on %s" % input_image)
         cls.sci.weight_custom = np.copy(cls.sci.weight)
-        # Make a copy of the weight_hdr to use
-        cls.sci.weight_custom_hdr =  copy.copy(cls.sci.weight_hdr)
         null_mask = parse_badpix_mask(cls.config.get(cls.config_section, 'null_mask'))
         star_mask = parse_badpix_mask('STAR') # 32
         badamp_mask = parse_badpix_mask('BADAMP') 
