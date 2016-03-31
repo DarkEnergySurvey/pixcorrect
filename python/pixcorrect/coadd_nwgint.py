@@ -142,7 +142,7 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         # WGT_ME 
         logger.info("Creating WGT_ME HDU and relevant FZ*/DES_EXT/EXTNAME keywords")
         cls.sci.weight_custom_hdr = update_hdr_compression(cls.sci.weight_custom_hdr,'WGT')
-        ofits.write(cls.sci.weight_custom,extname='WGT_ME',header=cls.sci.weight_custom_hdr)
+        ofits.write(cls.sci.weight_custom,extname='WGT_ME',header=cls.sci.weight_hdr)
         ofits.close()
 
     @classmethod
