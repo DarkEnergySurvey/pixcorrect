@@ -49,7 +49,7 @@ libfpnumber = SharedLibrary(
 
 # The main call
 setup(name='pixcorrect',
-      version ='0.2.1',
+      version ='0.2.2',
       description = "Pixel-level image correction",
       author = "Eric Neilsen",
       author_email = "neilsen@fnal.gov",
