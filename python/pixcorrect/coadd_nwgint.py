@@ -24,6 +24,7 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
     config_section = "coadd_nwgit"
     description = 'Perform row_interp and null_weights in one step'
     step_name = config_section
+    DEFAULT_CUSTOM_WEIGHT = False
     DEFAULT_HEADFILE = False
     DEFAULT_HDUPCFG = False
     DEFAULT_TILENAME = False
@@ -40,15 +41,19 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         by calling step_run in each class
         """
         t0 = time.time()
-        # Get the science image
-        input_image = self.config.get(self.config_section,'in')
-        self.sci = DESImage.load(input_image)
 
+        # Check if we want special multi-epoch weighting
+        custom_weight  = self.config.getboolean(self.config_section, 'custom_weight')
+        
         # Get verbose
         try:
             verbose = self.config.get(self.config_section,'verbose')
         except:
             verbose = False
+
+        # Get the science image
+        input_image = self.config.get(self.config_section,'in')
+        self.sci = DESImage.load(input_image)
 
         # Add TILENAME and TILEID to sci header (optional) if required
         self.update_sci_header(input_image)
@@ -56,8 +61,9 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         # Update the header wcs if both headfile and hdupcfg are present (optional)
         self.update_wcs_header(input_image,verbose=verbose)
         
-        # Create the custon weight for SWArp/SExtractor combination
-        self.custom_weight(input_image)
+        # Check if want to create the custon weight for SWArp/SExtractor combination
+        if custom_weight:
+            self.custom_weight(input_image)
         
         # Run null_weights
         t1 = time.time()
@@ -72,9 +78,11 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         logger.info("Time RowInterp : %s" % elapsed_time(t2))
         
         output_image = self.config.get(self.config_section, 'out')
-
-        # Special write out with custom WGT_ME plabe
-        self.custom_write(output_image)
+        # Special write out
+        if custom_weight:
+            self.custom_write(output_image)
+        else:
+            self.sci.save(output_image)
         
         logger.info("Wrote new file: %s" % output_image)
         logger.info("Time Total: %s" % elapsed_time(t0))
@@ -137,8 +145,10 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         cls.sci.weight_hdr = update_hdr_compression(cls.sci.weight_hdr,'WGT')
         ofits.write(cls.sci.weight,extname='WGT',header=cls.sci.weight_hdr)
         # WGT_ME 
-        logger.info("Creating WGT_ME HDU and relevant FZ*/DES_EXT/EXTNAME keywords")
-        cls.sci.weight_custom_hdr = update_hdr_compression(cls.sci.weight_custom_hdr,'WGT')
+        # For  WGT_ME we do not need to update the FZ keywords, as we use the same as WGT
+        #logger.info("Creating WGT_ME HDU and relevant FZ*/DES_EXT/EXTNAME keywords")
+        #cls.sci.weight_hdr = update_hdr_compression(cls.sci.weight_hdr,'WGT')
+        logger.info("Creating WGT_ME HDU")
         ofits.write(cls.sci.weight_custom,extname='WGT_ME',header=cls.sci.weight_hdr)
         ofits.close()
 
@@ -148,6 +158,8 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         """
         null_weights.add_step_args(parser)
         row_interp.add_step_args(parser)
+        parser.add_argument('--custom_weight', action='store_true',default=cls.DEFAULT_CUSTOM_WEIGHT,
+                            help='Run custom weights for STAR and do not write MSK plane for multi-epoch (me)')
         parser.add_argument('--headfile', action='store', default=cls.DEFAULT_HEADFILE,
                             help='Headfile (containing most update information)')
         parser.add_argument('--hdupcfg', action='store', default=cls.DEFAULT_HDUPCFG,
