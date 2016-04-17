@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from pixcorrect.null_weights import null_weights
-from pixcorrect.row_interp   import row_interp
+from pixcorrect.row_zipper   import row_zipper
 from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
@@ -17,12 +17,12 @@ import time
 import fitsio
 import numpy as np
 
-class CoaddRowInterpNullWeight(PixCorrectMultistep):
+class CoaddZipperInterpNullWeight(PixCorrectMultistep):
 
     """Run custom weights for STAR and do not write MSK plane for multi-epoch (me)'"""
 
     config_section = "coadd_nwgit"
-    description = 'Perform row_interp and null_weights in one step'
+    description = 'Perform zipper interpolation along rows and null_weights in one step'
     step_name = config_section
     DEFAULT_CUSTOM_WEIGHT = False
     DEFAULT_HEADFILE = False
@@ -32,12 +32,12 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
 
     # Fix the step_name for passing the command-line arguments to the classes
     null_weights.__class__.step_name = config_section
-    row_interp.__class__.step_name   = config_section
+    row_zipper.__class__.step_name   = config_section
     
     
     def __call__(self):
         """
-        Run row_interp and null_weights in one step, we run the tasks
+        Run row_zipper and null_weights in one step, we run the tasks
         by calling step_run in each class
         """
         t0 = time.time()
@@ -71,11 +71,11 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         null_weights.step_run(self.sci,self.config)
         logger.info("Time NullWeights : %s" % elapsed_time(t1))
 
-        # Run row_interp
+        # Run row_zipper
         t2 = time.time()
-        logger.info("Running row_interp on: %s" % input_image)
-        row_interp.step_run(self.sci,self.config)
-        logger.info("Time RowInterp : %s" % elapsed_time(t2))
+        logger.info("Running row_zipper on: %s" % input_image)
+        row_zipper.step_run(self.sci,self.config)
+        logger.info("Time ZipperInterp : %s" % elapsed_time(t2))
         
         output_image = self.config.get(self.config_section, 'out')
         # Special write out
@@ -154,10 +154,10 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
 
     @classmethod
     def add_step_args(cls, parser):
-        """Add arguments for null_weights and row_interp
+        """Add arguments for null_weights and row_zipper
         """
         null_weights.add_step_args(parser)
-        row_interp.add_step_args(parser)
+        row_zipper.add_step_args(parser)
         parser.add_argument('--custom_weight', action='store_true',default=cls.DEFAULT_CUSTOM_WEIGHT,
                             help='Run custom weights for STAR and do not write MSK plane for multi-epoch (me)')
         parser.add_argument('--headfile', action='store', default=cls.DEFAULT_HEADFILE,
@@ -180,4 +180,4 @@ def get_safe_boolean(name,config,config_section):
     return param
 
 if __name__ == '__main__':
-    RowInterpNullWeight.main()
+    CoaddZipperInterpNullWeight.main()
