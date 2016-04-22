@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from pixcorrect.null_weights import null_weights
-from pixcorrect.row_interp   import row_interp
+from pixcorrect.row_zipper   import row_zipper
 from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 
@@ -17,34 +17,35 @@ import time
 import fitsio
 import numpy as np
 
-class CoaddRowInterpNullWeight(PixCorrectMultistep):
+class CoaddZipperInterpNullWeight(PixCorrectMultistep):
 
     """Run custom weights for STAR and do not write MSK plane for multi-epoch (me)'"""
 
     config_section = "coadd_nwgit"
-    description = 'Perform row_interp and null_weights in one step'
+    description = 'Perform zipper interpolation along rows and null_weights in one step'
     step_name = config_section
     DEFAULT_CUSTOM_WEIGHT = False
     DEFAULT_HEADFILE = False
     DEFAULT_HDUPCFG = False
     DEFAULT_TILENAME = False
     DEFAULT_TILEID = False
+    DEFAULT_ME_WGT_KEEPMASK = False
 
     # Fix the step_name for passing the command-line arguments to the classes
     null_weights.__class__.step_name = config_section
-    row_interp.__class__.step_name   = config_section
+    row_zipper.__class__.step_name   = config_section
     
     
     def __call__(self):
         """
-        Run row_interp and null_weights in one step, we run the tasks
+        Run row_zipper and null_weights in one step, we run the tasks
         by calling step_run in each class
         """
         t0 = time.time()
 
-        # Check if we want special multi-epoch weighting
-        custom_weight  = self.config.getboolean(self.config_section, 'custom_weight')
-        
+        # Check if we want special multi-epoch weighting, and which bits we want to 'save'
+        me_wgt_keepmask = get_safe_boolean('me_wgt_keepmask',self.config,self.config_section)
+
         # Get verbose
         try:
             verbose = self.config.get(self.config_section,'verbose')
@@ -62,7 +63,7 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         self.update_wcs_header(input_image,verbose=verbose)
         
         # Check if want to create the custon weight for SWArp/SExtractor combination
-        if custom_weight:
+        if me_wgt_keepmask:
             self.custom_weight(input_image)
         
         # Run null_weights
@@ -71,15 +72,15 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         null_weights.step_run(self.sci,self.config)
         logger.info("Time NullWeights : %s" % elapsed_time(t1))
 
-        # Run row_interp
+        # Run row_zipper
         t2 = time.time()
-        logger.info("Running row_interp on: %s" % input_image)
-        row_interp.step_run(self.sci,self.config)
-        logger.info("Time RowInterp : %s" % elapsed_time(t2))
+        logger.info("Running row_zipper on: %s" % input_image)
+        row_zipper.step_run(self.sci,self.config)
+        logger.info("Time ZipperInterp : %s" % elapsed_time(t2))
         
         output_image = self.config.get(self.config_section, 'out')
         # Special write out
-        if custom_weight:
+        if me_wgt_keepmask :
             self.custom_write(output_image)
         else:
             self.sci.save(output_image)
@@ -115,17 +116,39 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
     def custom_weight(cls,input_image):
         # Make custom weight, that will not zero STAR maskbit
         logger.info("Will perform special weighting for multi-epoch input on %s" % input_image)
+        # Make a copy of the original untouched weight
         cls.sci.weight_custom = np.copy(cls.sci.weight)
-        null_mask = parse_badpix_mask(cls.config.get(cls.config_section, 'null_mask'))
-        star_mask = parse_badpix_mask('STAR') # 32
-        badamp_mask = parse_badpix_mask('BADAMP') 
-        badamp    = np.array( cls.sci.mask & badamp_mask, dtype=bool)
-        kill      = np.array( cls.sci.mask & null_mask, dtype=bool)
-        stars     = np.array( cls.sci.mask & star_mask, dtype=bool)
-        cls.sci.weight_custom[kill]   = 0.0
-        cls.sci.weight_custom[stars]  = np.copy(cls.sci.weight[stars])
-        cls.sci.weight_custom[badamp] = 0.0
+        null_mask       = cls.config.get(cls.config_section, 'null_mask')
+        me_wgt_keepmask = cls.config.get(cls.config_section, 'me_wgt_keepmask')
 
+        # Make python lists of the coma-separated input lists
+        null_list = null_mask.split(',')
+        keep_list = me_wgt_keepmask.split(',') 
+
+        # Special case we care:
+        # . we are nulling the TRAIL but want keep where STAR 
+        if 'TRAIL' in null_list and 'STAR' in keep_list and 'TRAIL' not in keep_list:
+            # Remove STAR from the list
+            if 'STAR' in null_list: null_list.remove('STAR')
+            null_mask_bits = parse_badpix_mask(','.join(null_list))
+            # Null each plane at a time. First the TRAILS and replace with STAR
+            kill  = np.array(cls.sci.mask & parse_badpix_mask('TRAIL'), dtype=bool)
+            stars = np.array(cls.sci.mask & parse_badpix_mask('STAR'), dtype=bool)
+            cls.sci.weight_custom[kill]  = 0.0
+            cls.sci.weight_custom[stars]  = np.copy(cls.sci.weight[stars])
+            # Loop over the bitplanes, but skipping TRAIL, which we already did
+            null_list.remove('TRAIL')
+            for bitplane in null_list:
+                kill  = np.array(cls.sci.mask & parse_badpix_mask(bitplane), dtype=bool)
+                cls.sci.weight_custom[kill]  = 0.0
+        # We  remove tham from the null_list
+        else:
+            for bitplane in me_wgt_keepmask.split(','):
+                if bitplane in null_list: null_list.remove(bitplane)
+            null_mask_bits = parse_badpix_mask(','.join(null_list))
+            kill = np.array( cls.sci.mask & null_mask_bits, dtype=bool)
+            cls.sci.weight_custom[kill]  = 0.0
+            
     def custom_write(cls,output_image):
         # Write out the image using fitsio, but skipping the mask as we won't need it.
         ofits = fitsio.FITS(output_image,'rw',clobber=True)
@@ -145,21 +168,21 @@ class CoaddRowInterpNullWeight(PixCorrectMultistep):
         cls.sci.weight_hdr = update_hdr_compression(cls.sci.weight_hdr,'WGT')
         ofits.write(cls.sci.weight,extname='WGT',header=cls.sci.weight_hdr)
         # WGT_ME 
-        # For  WGT_ME we do not need to update the FZ keywords, as we use the same as WGT
-        #logger.info("Creating WGT_ME HDU and relevant FZ*/DES_EXT/EXTNAME keywords")
-        #cls.sci.weight_hdr = update_hdr_compression(cls.sci.weight_hdr,'WGT')
+        # For  WGT_ME we do not need to update the FZ keywords, as we use the same hdr as WGT
         logger.info("Creating WGT_ME HDU")
         ofits.write(cls.sci.weight_custom,extname='WGT_ME',header=cls.sci.weight_hdr)
         ofits.close()
 
     @classmethod
     def add_step_args(cls, parser):
-        """Add arguments for null_weights and row_interp
+        """Add arguments for null_weights and row_zipper
         """
         null_weights.add_step_args(parser)
-        row_interp.add_step_args(parser)
+        row_zipper.add_step_args(parser)
         parser.add_argument('--custom_weight', action='store_true',default=cls.DEFAULT_CUSTOM_WEIGHT,
                             help='Run custom weights for STAR and do not write MSK plane for multi-epoch (me)')
+        parser.add_argument('--me_wgt_keepmask', action='store',default=cls.DEFAULT_ME_WGT_KEEPMASK,
+                            help='Run custom weight and preserve bits and do not write MSK plane for multi-epoch (me)')
         parser.add_argument('--headfile', action='store', default=cls.DEFAULT_HEADFILE,
                             help='Headfile (containing most update information)')
         parser.add_argument('--hdupcfg', action='store', default=cls.DEFAULT_HDUPCFG,
@@ -180,4 +203,4 @@ def get_safe_boolean(name,config,config_section):
     return param
 
 if __name__ == '__main__':
-    RowInterpNullWeight.main()
+    CoaddZipperInterpNullWeight.main()
