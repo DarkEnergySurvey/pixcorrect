@@ -157,18 +157,12 @@ class FixColumns(PixCorrectImStep):
 
             correction = np.sum(mean*wt)/np.sum(wt) - col_mean
             correction_var = 1./np.sum(wt) + col_var/col_n
-            # Marriner does not apply correction if it's insignificant:
-            if correction*correction < correction_var * MINIMUM_SIGNIFICANCE**2:
-                print 'correction:::',correction ##
-                logger.info('Insignificant correction for ' \
-                             'column {:d} by {:f}'.format(icol,float(correction)))
-                continue
 
             # Apply correction:
             image.data[:,icol][use_rows] += correction
             # Promote the corrected pixels from useless to just imperfect:
             image.mask[:,icol][use_rows] &= ~maskbits.BADPIX_BPM
-            image.mask[:,icol][use_rows] |= maskbits.BADPIX_SUSPECT
+            image.mask[:,icol][use_rows] |= maskbits.BADPIX_FIXED
             print 'correction:::',correction ##
             logger.info('Corrected column {:d} by {:f}'.format(icol,float(correction)))
 

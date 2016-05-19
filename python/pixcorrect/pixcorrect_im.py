@@ -108,6 +108,15 @@ class PixCorrectIm(PixCorrectMultistep):
         if self.do_step('gain'):
             self._check_return(gain_correct(self.sci))
             
+        # If done with the BPM; let python reclaim the memory
+        if not self.do_step('fixcols'):
+            self.clean_im('bpm')
+
+        # Fix columns
+        if self.do_step('fixcols'):
+            self._check_return(fix_columns(self.sci, self.bpm))
+            self.clean_im('bpm')
+
         # B/F correction
         if self.do_step('bf'):
             bf_fname = self.config.get('pixcorrect_im', 'bf')
@@ -115,20 +124,11 @@ class PixCorrectIm(PixCorrectMultistep):
                                           bf_fname,
                                           bfinfo.DEFAULT_BFMASK))
             
-        # If done with the BPM; let python reclaim the memory
-        if not self.do_step('fixcol'):
-            self.clean_im('bpm')
-
         # Flat field
         if self.do_step('flat'):
             self._check_return(flat_correct(self.sci, self.flat))
             if not self.do_step('sky'):
                 self.clean_im('flat')
-
-        # Fix columns
-        if self.do_step('fixcols'):
-            self._check_return(fix_columns(self.sci, self.bpm))
-            self.clean_im('bpm')
 
         # Make mini-sky image
         if self.do_step('mini'):

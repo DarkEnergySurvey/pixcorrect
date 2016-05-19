@@ -63,8 +63,9 @@ class MakeMask(PixCorrectImStep):
                     BPMDEF_BIAS_WARM | \
                     BPMDEF_BIAS_MASK | \
                     BPMDEF_BIAS_COL | \
-                    BPMDEF_CORR | \
+                    BPMDEF_FUNKY_COL | \
                     BPMDEF_WACKY_PIX
+                # ERICM Removed BPMDEF_CORR and addec FUNKY_COL
                 # ??? Add FUNKY_COL to the list of unusable pixels?
                 mark = (bpm_im.mask & bitmask) != 0
                 image.mask[mark] |= BADPIX_BPM
@@ -77,12 +78,12 @@ class MakeMask(PixCorrectImStep):
                 mark = (bpm_im.mask & bitmask) != 0
                 image.mask[mark] |= BADPIX_BADAMP
 
-                # Mark slightly dodgy pixels
+                # Clearing and then marking correctable pixels
+                bpm_im.mask -= (bpm_im.mask & BPMDEF_CORR)
                 bitmask = BPMDEF_FUNKY_COL | \
-                    BPMDEF_SUSPECT
-                # ??? Is this what to do with FUNKY_COL ???
+                    BPMDEF_BIAS_COL
                 mark = (bpm_im.mask & bitmask) != 0
-                image.mask[mark] |= BADPIX_SUSPECT
+                bpm_im.mask[mark] |= BPMDEF_CORR
               
                 image[kw] = time.asctime(time.localtime())
                 image.write_key(kw, time.asctime(time.localtime()),
