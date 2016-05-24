@@ -1,5 +1,5 @@
 # depyfits will load imsuport and shlibs
-setupRequired(despyfits 0.3.4+1)
+setupRequired(despyfits 0.3.8+0)
 setupRequired(scipy 0.14.0+6)
 
 envAppend(PYTHONPATH, ${PRODUCT_DIR}/python)

@@ -171,6 +171,10 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
         # For  WGT_ME we do not need to update the FZ keywords, as we use the same hdr as WGT
         logger.info("Creating WGT_ME HDU")
         ofits.write(cls.sci.weight_custom,extname='WGT_ME',header=cls.sci.weight_hdr)
+        # MSK
+        logger.info("Creating MSK HDU %d and relevant FZ*/DES_EXT/EXTNAME keywords")
+        cls.sci.mask_hdr = update_hdr_compression(cls.sci.mask_hdr,'MSK')
+        ofits.write(cls.sci.mask,extname='MSK',header=cls.sci.mask_hdr)
         ofits.close()
 
     @classmethod
