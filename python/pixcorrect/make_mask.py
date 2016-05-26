@@ -84,7 +84,9 @@ class MakeMask(PixCorrectImStep):
                     BPMDEF_BIAS_COL
                 mark = (bpm_im.mask & bitmask) != 0
                 bpm_im.mask[mark] |= BPMDEF_CORR
-              
+                image.mask[mark] |= BADPIX_FIXED
+             
+ 
                 image[kw] = time.asctime(time.localtime())
                 image.write_key(kw, time.asctime(time.localtime()),
                                 comment = 'Construct mask from BPM')
