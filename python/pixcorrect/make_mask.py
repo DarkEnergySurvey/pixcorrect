@@ -80,11 +80,29 @@ class MakeMask(PixCorrectImStep):
 
                 # Clearing and then marking correctable pixels
                 bpm_im.mask -= (bpm_im.mask & BPMDEF_CORR)
-                bitmask = BPMDEF_FUNKY_COL | \
-                    BPMDEF_BIAS_COL
-                mark = (bpm_im.mask & bitmask) != 0
-                bpm_im.mask[mark] |= BPMDEF_CORR
-                image.mask[mark] |= BADPIX_FIXED
+                N_BIAS_HOT = np.sum(bpm_im.mask & BPMDEF_BIAS_HOT, axis=0)/BPMDEF_BIAS_HOT
+                N_BIAS_COL = np.sum(bpm_im.mask & BPMDEF_BIAS_COL, axis=0)/BPMDEF_BIAS_COL
+                N_FUNKY_COL = np.sum(bpm_im.mask & BPMDEF_FUNKY_COL, axis=0)/BPMDEF_FUNKY_COL
+                maskwidth=bpm_im.mask.shape[1]
+                biascols=np.arange(maskwidth)[(N_BIAS_COL > 0)]
+                for icol in biascols:
+                  bpm_im.mask[:,icol] -= (bpm_im.mask[:,icol] & BPMDEF_FUNKY_COL )
+                  if N_BIAS_HOT[icol] == 1:
+                    bpm_im.mask[:,icol][(bpm_im.mask[:,icol] & BPMDEF_BIAS_COL) > 0] |= BPMDEF_CORR
+                    logger.info('Column '+str(icol)+' has 1 hot pixel and is correctable.')
+                  if N_BIAS_HOT[icol] > 1:
+                    logger.info('Column '+str(icol)+' has '+str(N_BIAS_HOT[icol])+' hot pixels and is NOT correctable.')
+                funkycols=np.arange(maskwidth)[(N_BIAS_COL == 0) & (BPMDEF_FUNKY_COL > 0)]
+                for icol in funkycols:
+                  bpm_im.mask[:,icol] |= BPMDEF_CORR 
+                  logger.info('Column '+str(icol)+' is funky and correctable.')
+
+
+#                bitmask = BPMDEF_FUNKY_COL | \
+#                    BPMDEF_BIAS_COL
+#                mark = (bpm_im.mask & bitmask) != 0
+#                bpm_im.mask[mark] |= BPMDEF_CORR
+#                image.mask[mark] |= BADPIX_FIXED
              
  
                 image[kw] = time.asctime(time.localtime())
