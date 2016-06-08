@@ -109,14 +109,14 @@ class MakeMask(PixCorrectImStep):
                 image.mask[mark] |= BADPIX_SUSPECT
 
                 # Copy NEAREDGE BPM bits to image mask
-                #bitmask = BPMDEF_NEAREDGE
-                #mark = (bpm_im.mask & bitmask) != 0
-                #image.mask[mark] |= BADPIX_NEAREDGE
+                bitmask = BPMDEF_NEAREDGE
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_NEAREDGE
 
                 # Copy TAPEBUMP BPM bits to image mask
-                #bitmask = BPMDEF_TAPEBUMP
-                #mark = (bpm_im.mask & bitmask) != 0
-                #image.mask[mark] |= BADPIX_TAPEBUMP
+                bitmask = BPMDEF_TAPEBUMP
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_TAPEBUMP
 
                 # Mark correctable pixels.
                 # Pixels flagged as BPMDEF_BIAS_COL and BPMDEF_FUNKY_COL may be correctable.
