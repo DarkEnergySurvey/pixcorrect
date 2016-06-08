@@ -270,7 +270,7 @@ int fixCol(desimage bpm,desimage output)
 	     if (bpm.mask[jo]&BPMDEF_CORR){
                 output.image[jo] -= corr;
                 output.mask[jo] &= ~BADPIX_BPM;
-                output.mask[jo] |= BADPIX_FIXED;
+                output.mask[jo] |= BADPIX_FIX;
              }
          }
       }
