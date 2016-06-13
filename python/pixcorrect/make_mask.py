@@ -123,6 +123,10 @@ class MakeMask(PixCorrectImStep):
                 # We flag them in the image as bad (BADPIX_BPM), but - if fix_columns is run,
                 # the BADPIX_BPM flag will be cleared and the BADPIX_FIX flag will be set
                 # First clear correctable bits from BPM if any are already set
+                #====Temporary kluge until we get the new BPMS
+                mark = (bpm_im.mask & BPMDEF_CORR)
+                bpm_im.mask[mark] |= BPMDEF_BIAS_COL
+                #====End kluge
                 bpm_im.mask -= (bpm_im.mask & BPMDEF_CORR)
                 # For each column find the number of pixels flagged as BIAS_HOT and BIAS_COL
                 N_BIAS_HOT = np.sum((bpm_im.mask & BPMDEF_BIAS_HOT) > 0, axis=0)
@@ -137,10 +141,10 @@ class MakeMask(PixCorrectImStep):
                   bpm_im.mask[:,icol] -= (bpm_im.mask[:,icol] & BPMDEF_FUNKY_COL )
                   #Correctable columns have exactly 1 BIAS_HOT pixel
                   if N_BIAS_HOT[icol] == 1:
-                    #Correctable pixels have BIAS_COL bit set and no other bits set
-                    bpm_im.mask[:,icol][(bpm_im.mask[:,icol] == BPMDEF_BIAS_COL)] |= BPMDEF_CORR
+                    #Correctable pixels have BIAS_COL bit set
+                    bpm_im.mask[:,icol][(bpm_im.mask[:,icol]&BPMDEF_BIAS_COL)>0] |= BPMDEF_CORR
                     logger.info('Column '+str(icol)+' has 1 hot pixel and is correctable.')
-                  if N_BIAS_HOT[icol] > 1:
+                  else:
                     logger.info('Column '+str(icol)+' has '+str(N_BIAS_HOT[icol])+' hot pixels and is NOT correctable.')
 
                 #Now do columns with FUNKY_COL set.  Note that the FUNKY_COL bits have been cleared above
@@ -148,8 +152,8 @@ class MakeMask(PixCorrectImStep):
                 N_FUNKY_COL = np.sum((bpm_im.mask & BPMDEF_FUNKY_COL) > 0, axis=0)
                 funkycols=np.arange(maskwidth)[(N_FUNKY_COL > 0)]
                 for icol in funkycols:
-                  #Correctable pixels have FUNKY_COL bit set and no other bits set
-                  bpm_im.mask[:,icol][(bpm_im.mask[:,icol] == BPMDEF_FUNKY_COL)] |= BPMDEF_CORR 
+                  #Correctable pixels have FUNKY_COL bit set
+                  bpm_im.mask[:,icol][(bpm_im.mask[:,icol]&BPMDEF_FUNKY_COL)>0] |= BPMDEF_CORR
                   logger.info('Column '+str(icol)+' is funky and correctable.')
 
  

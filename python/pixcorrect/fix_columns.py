@@ -36,8 +36,11 @@ class FixColumnsError(Exception):
 class FixColumns(PixCorrectImStep):
     description = "Fix the correctable columns"
     step_name = config_section
-    
-    CORR = maskbits.BPMDEF_CORR  # BPM flag for correctable pixels
+    # BPM flag for correctable pixels
+    CORR = maskbits.BPMDEF_CORR
+    # These BPM flags may be present for correctable pixels
+    BPMOK = CORR | maskbits.BPMDEF_BIAS_COL | maskbits.BPMDEF_FUNKY_COL
+    # These image mask flags indicate bad pixels in the reference columns
     REJECT = maskbits.BADPIX_BPM + \
       maskbits.BADPIX_SATURATE +\
       maskbits.BADPIX_BADAMP + \
@@ -94,14 +97,18 @@ class FixColumns(PixCorrectImStep):
                                          bpm.mask[-1,:] & cls.CORR))[0]
 
         for icol in fixable:
+            # The fixable column is a hot bias pixel type if COL_BIAS is set
+            hotbias = np.logical_or(bpm.mask[0,icol] & maskbits.BPMDEF_COL_BIAS,
+                                         bpm.mask[-1,icol] & maskbits.BPMDEF_COL_BIAS)
             # Which pixels in the column are fixable?
             # They need to have only the CORR flag set, and be finite, and not saturated.
             coldata = image.data[:,icol]
             colbpm = bpm.mask[:,icol]
-            ignore = np.logical_or( colbpm & ~cls.CORR, np.isinf(coldata))
+            ignore = np.logical_or( colbpm & ~cls.BPMOK, np.isinf(coldata))
             ignore |= np.isnan(coldata)
             ignore |= image.mask[:,icol] & maskbits.BADPIX_SATURATE
             use_rows = np.logical_and(colbpm & cls.CORR, ~ignore)
+            ref_rows = np.logical_and(colbpm, ~ignore , ~use_rows)
             if np.count_nonzero(use_rows) < cls.MINIMUM_PIXELS:
                 logger.info("Not enough pixels to fix column {:d}".format(icol))
                 continue
