@@ -43,7 +43,60 @@ class MakeMask(PixCorrectImStep):
             logger.warning('Null operation requested in make_mask')
             return ret_code
 
-        #Flag saturated pixels first, if requested
+        if bpm_im is not None:
+            # Check for header keyword of whether it's been done
+            kw = 'DESBPM'
+            if kw in image.header.keys() and not clear:
+                logger.warning('Skipping BPM application ('+kw+' already set)')
+            else:
+                logger.info('Applying BPM')
+                try:
+                    items_must_match(image, bpm_im, 'CCDNUM')
+                except:
+                    return 1
+
+                # Mark the unusable data
+                bitmask = BPMDEF_FLAT_MIN | \
+                    BPMDEF_FLAT_MAX | \
+                    BPMDEF_FLAT_MASK | \
+                    BPMDEF_BIAS_HOT | \
+                    BPMDEF_BIAS_WARM | \
+                    BPMDEF_BIAS_MASK | \
+                    BPMDEF_BIAS_COL | \
+                    BPMDEF_FUNKY_COL | \
+                    BPMDEF_WACKY_PIX
+                # ERICM Removed BPMDEF_CORR and addec FUNKY_COL
+                # ??? Add FUNKY_COL to the list of unusable pixels?
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_BPM
+
+                # Mark edge pixels and bad amplifier with their own bits
+                bitmask = BPMDEF_EDGE
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_EDGE
+                bitmask = BPMDEF_BADAMP
+                mark = (bpm_im.mask & bitmask) != 0
+                image.mask[mark] |= BADPIX_BADAMP
+
+                # Clearing and then marking correctable pixels
+                bpm_im.mask -= (bpm_im.mask & BPMDEF_CORR)
+                bitmask = BPMDEF_FUNKY_COL | \
+                    BPMDEF_BIAS_COL
+                mark = (bpm_im.mask & bitmask) != 0
+                bpm_im.mask[mark] |= BPMDEF_CORR
+                image.mask[mark] |= BADPIX_FIXED
+             
+ 
+                image[kw] = time.asctime(time.localtime())
+                image.write_key(kw, time.asctime(time.localtime()),
+                                comment = 'Construct mask from BPM')
+                if bpm_im.sourcefile is None:
+                    image.write_key('BPMFIL', 'UNKNOWN', comment='BPM file used to build mask')
+                else:
+                    image.write_key('BPMFIL', path.basename(bpm_im.sourcefile), comment='BPM file used to build mask')
+                        
+                logger.debug('Finished applying BPM')
+
         if saturate:
             # Check for header keyword of whether it's been done
             kw = 'DESSAT'
@@ -65,110 +118,6 @@ class MakeMask(PixCorrectImStep):
                                 comment='Number of saturated pixels')
                 
                 logger.debug('Finished flagging saturated pixels')
-
-        #Now fill in BPM
-        if bpm_im is not None:
-            # Check for header keyword of whether it's been done
-            kw = 'DESBPM'
-            if kw in image.header.keys() and not clear:
-                logger.warning('Skipping BPM application ('+kw+' already set)')
-            else:
-                logger.info('Applying BPM')
-                try:
-                    items_must_match(image, bpm_im, 'CCDNUM')
-                except:
-                    return 1
-
-                # Enable the following kluge code to work with old style BPM's
-                #Replace CORR with BIAS_COL
-                #bitmask = BPMDEF_CORR
-                #mark = (bpm_im.mask & bitmask) != 0
-                #bpm_im.mask[mark] |= BPMDEF_BIAS_COL
-                # Clear correctable bits from BPM if any are already set
-                #bpm_im.mask -= (bpm_im.mask & BPMDEF_CORR)
-                #====End kluge
-
-                # Map the following BPM bits to BADPIX_BPM in the image mask
-                bitmask = BPMDEF_FLAT_MIN | \
-                    BPMDEF_FLAT_MAX | \
-                    BPMDEF_FLAT_MASK | \
-                    BPMDEF_BIAS_HOT | \
-                    BPMDEF_BIAS_WARM | \
-                    BPMDEF_BIAS_MASK | \
-                    BPMDEF_BIAS_COL | \
-                    BPMDEF_FUNKY_COL | \
-                    BPMDEF_WACKY_PIX
-                # ERICM Removed BPMDEF_CORR and added FUNKY_COL to the above list 
-                mark = (bpm_im.mask & bitmask) != 0
-                image.mask[mark] |= BADPIX_BPM
-
-                # Copy BPM edge pixels to image mask
-                bitmask = BPMDEF_EDGE
-                mark = (bpm_im.mask & bitmask) != 0
-                image.mask[mark] |= BADPIX_EDGE
-
-                # Copy bad amplifier bits to image mask
-                bitmask = BPMDEF_BADAMP
-                mark = (bpm_im.mask & bitmask) != 0
-                image.mask[mark] |= BADPIX_BADAMP
-
-                # Copy SUSPECT BPM bits to image mask
-                bitmask = BPMDEF_SUSPECT
-                mark = (bpm_im.mask & bitmask) != 0
-                image.mask[mark] |= BADPIX_SUSPECT
-
-                # Copy NEAREDGE BPM bits to image mask
-                bitmask = BPMDEF_NEAREDGE
-                mark = (bpm_im.mask & bitmask) != 0
-                image.mask[mark] |= BADPIX_NEAREDGE
-
-                # Copy TAPEBUMP BPM bits to image mask
-                bitmask = BPMDEF_TAPEBUMP
-                mark = (bpm_im.mask & bitmask) != 0
-                image.mask[mark] |= BADPIX_TAPEBUMP
-
-                # Mark correctable pixels.
-                # Pixels flagged as BPMDEF_BIAS_COL and BPMDEF_FUNKY_COL may be correctable.
-                # We flag them in the image as bad (BADPIX_BPM), but - if fix_columns is run,
-                # the BADPIX_BPM flag will be cleared and the BADPIX_FIX flag will be set
-                # For each column find the number of pixels flagged as BIAS_HOT and BIAS_COL
-                N_BIAS_HOT = np.sum((bpm_im.mask & BPMDEF_BIAS_HOT) > 0, axis=0)
-                N_BIAS_COL = np.sum((bpm_im.mask & BPMDEF_BIAS_COL) > 0, axis=0)
-                maskwidth=bpm_im.mask.shape[1]
-                # First do columns with N_BIAS_COL set for 1 or more pixels
-                biascols=np.arange(maskwidth)[(N_BIAS_COL > 0)]
-                for icol in biascols:
-                  #Clear FUNKY_COL bit if set for all pixels in this column
-                  #The reason for clearing the bit is that the FUNKY_COL detection is
-                  #sensitive to hot bias pixels and may flag those columns by "mistake"            
-                  bpm_im.mask[:,icol] -= (bpm_im.mask[:,icol] & BPMDEF_FUNKY_COL )
-                  #Correctable columns have exactly 1 BIAS_HOT pixel
-                  if N_BIAS_HOT[icol] == 1:
-                    #Correctable pixels have BIAS_COL bit set
-                    bpm_im.mask[:,icol][(bpm_im.mask[:,icol]&BPMDEF_BIAS_COL)>0] |= BPMDEF_CORR
-                    logger.info('Column '+str(icol)+' has 1 hot pixel and is correctable.')
-                  else:
-                    logger.info('Column '+str(icol)+' has '+str(N_BIAS_HOT[icol])+' hot pixels and is NOT correctable.')
-
-                #Now do columns with FUNKY_COL set.  Note that the FUNKY_COL bits have been cleared above
-                #for hot bias columns
-                N_FUNKY_COL = np.sum((bpm_im.mask & BPMDEF_FUNKY_COL) > 0, axis=0)
-                funkycols=np.arange(maskwidth)[(N_FUNKY_COL > 0)]
-                for icol in funkycols:
-                  #Correctable pixels have FUNKY_COL bit set
-                  bpm_im.mask[:,icol][(bpm_im.mask[:,icol]&BPMDEF_FUNKY_COL)>0] |= BPMDEF_CORR
-                  logger.info('Column '+str(icol)+' is funky and correctable.')
-
- 
-                image[kw] = time.asctime(time.localtime())
-                image.write_key(kw, time.asctime(time.localtime()),
-                                comment = 'Construct mask from BPM')
-                if bpm_im.sourcefile is None:
-                    image.write_key('BPMFIL', 'UNKNOWN', comment='BPM file used to build mask')
-                else:
-                    image.write_key('BPMFIL', path.basename(bpm_im.sourcefile), comment='BPM file used to build mask')
-                        
-                logger.debug('Finished applying BPM')
 
         return ret_code
 

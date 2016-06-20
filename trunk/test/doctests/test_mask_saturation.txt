@@ -1,0 +1,27 @@
+Testing mask_saturation.py
+==========================
+
+Figure out where to get test input::
+  >>> from os import path, environ
+  >>> data_home = environ['PIXCORRECTTESTDATA_DIR']
+
+Figure out where to put output::
+  >>> from tempfile import mkdtemp
+  >>> tmp_data = mkdtemp(suffix='-test-pixcorrect')
+
+Configure mask_saturation::
+  >>> from ConfigParser import SafeConfigParser 
+  >>> config = SafeConfigParser()
+  >>> from pixcorrect.mask_saturation import config_section 
+  >>> config.add_section(config_section)
+  >>> config.set(config_section, 'in', path.join(data_home, 'scix.fits'))
+  >>> config.set(config_section, 'out', path.join(tmp_data, 'masksat.fits'))
+
+Run mask_saturation::
+  >>> from pixcorrect.mask_saturation import mask_saturation
+  >>> mask_saturation.run(config)
+
+Clean up::
+  >>> from shutil import rmtree
+  >>> rmtree(tmp_data, True)
+

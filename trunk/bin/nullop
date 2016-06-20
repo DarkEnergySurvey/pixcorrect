@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.nullop import nullop
+
+if __name__ == '__main__':
+    nullop.main()

@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.flat_correct_cp import flat_correct_cp
+
+if __name__ == '__main__':
+    flat_correct_cp.main()

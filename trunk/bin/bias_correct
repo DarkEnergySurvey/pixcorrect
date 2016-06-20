@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.bias_correct import bias_correct
+
+if __name__ == '__main__':
+    bias_correct.main()

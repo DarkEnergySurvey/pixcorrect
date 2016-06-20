@@ -1,0 +1,9 @@
+>>> # This is a dummy example
+>>>
+>>> # If we write documentation that can include python
+>>> # transcripts from separate files, they can be checked
+>>> # automatically like this one is.
+>>> 
+>>> print 1
+1
+

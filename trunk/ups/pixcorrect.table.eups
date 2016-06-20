@@ -1,0 +1,11 @@
+# depyfits will load imsuport and shlibs
+setupRequired(despyfits 0.3.9+1)
+setupRequired(scipy 0.14.0+7)
+
+envAppend(PYTHONPATH, ${PRODUCT_DIR}/python)
+envAppend(PATH, ${PRODUCT_DIR}/bin)
+envAppend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+
+if (FLAVOR == DarwinX86 || FLAVOR == Darwin) {
+   envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+}

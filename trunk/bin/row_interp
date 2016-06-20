@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.row_interp import row_interp
+
+if __name__ == '__main__':
+    row_interp.main()

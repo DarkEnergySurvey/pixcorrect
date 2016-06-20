@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from pixcorrect.starflat_correct import starflat_correct
+
+if __name__ == '__main__':
+    starflat_correct.main()
