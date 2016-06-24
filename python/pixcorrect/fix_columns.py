@@ -18,7 +18,6 @@ from pixcorrect import proddir
 from pixcorrect.corr_util import logger, do_once, items_must_match
 from despyfits.DESImage import DESDataImage, DESImage, DESBPMImage
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
-#from pixcorrect.clippedMean import clippedMean
 from despyfits import maskbits
 
 # Which section of the config file to read for this step
@@ -38,14 +37,15 @@ class FixColumns(PixCorrectImStep):
     step_name = config_section
     # BPM flag for correctable pixels
     CORR = maskbits.BPMDEF_CORR
-    # These BPM flags may be present for correctable pixels
-    BPMOK = CORR | maskbits.BPMDEF_BIAS_COL | maskbits.BPMDEF_FUNKY_COL | maskbits.BPMDEF_SUSPECT
-    BPMOK |= maskbits.BPMDEF_NEAREDGE
-    # These image mask flags indicate bad pixels in the reference columns
-    #REJECT = maskbits.BADPIX_BPM + \
-    #  maskbits.BADPIX_SATURATE +\
-    #  maskbits.BADPIX_BADAMP + \
-    #  maskbits.BADPIX_SUSPECT  # bitmask for comparison pixels
+    # These BPM flags define pixels that are not correctable
+    BPMBAD = maskbits.BPMDEF_FLAT_MIN | \
+    maskbits.BPMDEF_FLAT_MAX | \
+    maskbits.BPMDEF_FLAT_MASK | \
+    maskbits.BPMDEF_BIAS_HOT | \
+    maskbits.BPMDEF_BIAS_WARM | \
+    maskbits.BPMDEF_BIAS_MASK | \
+    maskbits.BPMDEF_WACKY_PIX
+ 
     MINIMUM_PIXELS = 100  # Smallest number of pixels in column to correct
     CLIP_SIGMA = 4    # Rejection threshold for mean statistics
 
@@ -100,7 +100,8 @@ class FixColumns(PixCorrectImStep):
         """
         Return boolean array saying which pixels in column icol are useful for sky stats
         """
-        use = (bpm.mask[:,icol] & ~maskbits.BADPIX_NEAREDGE) == 0
+        #Allow NEAREDGE columns for reference
+        use = (image.mask[:,icol] & ~maskbits.BADPIX_NEAREDGE)==0
         use &= ~np.isinf(image.data[:,icol])
         use &= ~np.isnan(image.data[:,icol])
         return use
@@ -124,8 +125,8 @@ class FixColumns(PixCorrectImStep):
         #Change VAR_TOLERANCE from 0.5 to 0.25
         #Remove lower limit on correction
         #Change mask bit usage
-        #    -- correct all correctable pixels, but use only "good" pixels to compute correction
-        
+        #Correct all correctable pixels, but use only "good" pixels to compute correction
+  
         logger.info('Fixing columns')
         
         NEIGHBORS = 6  # Number of comparison columns to seek
@@ -133,6 +134,12 @@ class FixColumns(PixCorrectImStep):
         # Largest allowable fractional difference in variance between the fixable column
         # and its neighbors:
         VAR_TOLERANCE = 0.25
+        #We require the number of sky pixels in the target column to be not less than this
+        #fraction of the average number of sky pixels in the reference columns
+        #If the pixel values of a column vary in a bi-stable way, the high pixels may be
+        #interpreted as "objects" and the high variance may not be noticed.
+        COUNT_TOL = 0.80
+        
         
         if image.mask is None:
             raise FixColumnsError('Input image does not have mask')
@@ -160,12 +167,10 @@ class FixColumns(PixCorrectImStep):
             # Also, we do not use any bad pixels.  
             coldata = image.data[:,icol]
             colbpm = bpm.mask[:,icol]
-            #Pixels that can't be corrected
-            ignore = np.logical_or(colbpm & ~cls.BPMOK, np.isinf(coldata))
+            ignore = np.logical_or(colbpm & cls.BPMBAD, np.isinf(coldata))
             ignore |= np.isnan(coldata)
             corr_rows = np.logical_and(colbpm & cls.CORR, ~ignore)
-            #Additional pixels that are not used to compute the average
-            ignore |= image.mask[:,icol] & ~(maskbits.BADPIX_BPM | maskbits.BADPIX_NEAREDGE)
+            ignore |= image.mask[:,icol] & ~maskbits.BADPIX_BPM
             use_rows = np.logical_and(colbpm & cls.CORR, ~ignore)
 
             if np.count_nonzero(use_rows) < cls.MINIMUM_PIXELS:
@@ -173,14 +178,13 @@ class FixColumns(PixCorrectImStep):
                 continue
 
             # Get a robust estimate of mean level and slope in target column
-            #col_mean, col_var, col_n = clippedMean(coldata[use_rows], cls.CLIP_SIGMA)
             y = colord[use_rows]
             z = coldata[use_rows]
             col_mean, col_slope, col_var, col_n = cls._clippedLine(y,z,doslope,cls.CLIP_SIGMA)
             if col_var <= 0.0:
                 logger.info("Error in clipped line fit for column {:d}".format(icol))
                 continue
-                
+               
             # Now want to collect stats on up to NEIGHBORS nearby columns
             norm_stats = []
             ilow = icol
@@ -202,7 +206,6 @@ class FixColumns(PixCorrectImStep):
                     ref_col,ref_slope,ref_var, ref_n = cls._clippedLine(y,z,doslope,cls.CLIP_SIGMA)
                     if ref_var<=0.0: continue
                     norm_stats.append([ref_col,ref_slope,ref_var,ref_n])
-                    #norm_stats.append(clippedMean(image.data[:,ilow][use],cls.CLIP_SIGMA))
                     break
                 
                 while ihigh<high_limit:
@@ -219,8 +222,8 @@ class FixColumns(PixCorrectImStep):
                     ref_col,ref_slope,ref_var,ref_n = cls._clippedLine(y,z,doslope,cls.CLIP_SIGMA)
                     if ref_var<=0.0: continue
                     norm_stats.append([ref_col,ref_slope,ref_var,ref_n])
- 
                     break
+                
             if len(norm_stats) < NEIGHBORS:
                 # Don't fix the column if we did not get comparison columns
                 logger.info('Not enough comparison columns to fix col {:d}'.format(icol))
@@ -238,9 +241,16 @@ class FixColumns(PixCorrectImStep):
             # different from the comparison columns
             norm_var = np.sum(var*wt)/np.sum(wt)
             if np.abs(col_var - norm_var) > VAR_TOLERANCE * norm_var:
-                logger.info('Too much variance to fix col {:d}'.format(icol))
+                logger.info('Too much variance to fix column {:d}'.format(icol))
+                continue
+            #Check that number of target column sky pixels is not much less than
+            #the average of the reference columns
+            norm_n = np.sum(nc)/np.size(nc)
+            if col_n < COUNT_TOL*norm_n:
+                logger.info('Too few sky pixels to fix column {:d}'.format(icol))
                 continue
 
+            #Valid correction.  Calculate correction & error estimate
             norm_mean = np.sum(mean*wt)/np.sum(wt)
             correction = norm_mean - col_mean
             correction_var = 1./np.sum(wt) + col_var/col_n
