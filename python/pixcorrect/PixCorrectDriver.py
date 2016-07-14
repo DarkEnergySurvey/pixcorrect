@@ -119,8 +119,8 @@ class PixCorrectDriver(object):
             logging.basicConfig(format="%(asctime)s %(levelname)s:\t%(message)s",
                                 level=logging.WARNING)
 
-        global logger
-        logger = logging.getLogger()
+        #global logger
+        #logger = logging.getLogger()
         if args.verbose > 0:
             verbosity = logging.INFO if args.verbose==1 else logging.DEBUG
             logger.setLevel(verbosity)

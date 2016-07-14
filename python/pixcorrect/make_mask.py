@@ -79,7 +79,7 @@ class MakeMask(PixCorrectImStep):
                 except:
                     return 1
 
-                # Enable the following kluge code to work with old style BPM's
+                #====Temporary kluge until we get the new BPMS
                 #Replace CORR with BIAS_COL
                 #bitmask = BPMDEF_CORR
                 #mark = (bpm_im.mask & bitmask) != 0
@@ -140,7 +140,9 @@ class MakeMask(PixCorrectImStep):
                 for icol in biascols:
                   #Clear FUNKY_COL bit if set for all pixels in this column
                   #The reason for clearing the bit is that the FUNKY_COL detection is
-                  #sensitive to hot bias pixels and may flag those columns by "mistake"            
+                  #sensitive to hot bias pixels and may flag those columns by "mistake"
+                  #First clear BAD BPM bit if set because of funky column
+                  image.mask[:,icol][bpm_im.mask[:,icol]==BPMDEF_FUNKY_COL] &= ~BADPIX_BPM
                   bpm_im.mask[:,icol] -= (bpm_im.mask[:,icol] & BPMDEF_FUNKY_COL )
                   #Correctable columns have exactly 1 BIAS_HOT pixel
                   if N_BIAS_HOT[icol] == 1:

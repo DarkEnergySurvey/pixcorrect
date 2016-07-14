@@ -119,14 +119,14 @@ class FixColumns(PixCorrectImStep):
             - `image`: DESImage to fix.
             - `bpm`: DESBPMImage for this CCD
         """
-        #Modified 6/19/2016
+        #Modified 7/7/2016
         #Use clipLine to fit column slope
         #Change NEIGHBORS from 10 to 6
         #Change VAR_TOLERANCE from 0.5 to 0.25
         #Remove lower limit on correction
         #Change mask bit usage
         #Correct all correctable pixels, but use only "good" pixels to compute correction
-  
+
         logger.info('Fixing columns')
         
         NEIGHBORS = 6  # Number of comparison columns to seek
@@ -138,8 +138,7 @@ class FixColumns(PixCorrectImStep):
         #fraction of the average number of sky pixels in the reference columns
         #If the pixel values of a column vary in a bi-stable way, the high pixels may be
         #interpreted as "objects" and the high variance may not be noticed.
-        COUNT_TOL = 0.80
-        
+        COUNT_TOL = 0.85
         
         if image.mask is None:
             raise FixColumnsError('Input image does not have mask')
@@ -184,7 +183,7 @@ class FixColumns(PixCorrectImStep):
             if col_var <= 0.0:
                 logger.info("Error in clipped line fit for column {:d}".format(icol))
                 continue
-               
+                
             # Now want to collect stats on up to NEIGHBORS nearby columns
             norm_stats = []
             ilow = icol
@@ -249,7 +248,7 @@ class FixColumns(PixCorrectImStep):
             if col_n < COUNT_TOL*norm_n:
                 logger.info('Too few sky pixels to fix column {:d}'.format(icol))
                 continue
-
+ 
             #Valid correction.  Calculate correction & error estimate
             norm_mean = np.sum(mean*wt)/np.sum(wt)
             correction = norm_mean - col_mean

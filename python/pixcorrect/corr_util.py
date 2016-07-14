@@ -18,7 +18,7 @@ import numpy as np
 from pixcorrect import proddir
 
 # constants
-
+global logger
 logger = logging.getLogger('pixcorrect')
 
 # exception classes
