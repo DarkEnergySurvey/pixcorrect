@@ -9,7 +9,7 @@ echo "Will Install to: $PRODUCT_DIR"
 
 source $EUPS_DIR/desdm_eups_setup.sh
 setup -v scipy 0.14.0+7
-setup -v despyfits 0.5.0+0 
+setup -v despyfits 0.5.1+2
 #setup -v -r ~/build-test/despyfits
 
 export PYTHONPATH=$PRODUCT_DIR/python:$PYTHONPATH

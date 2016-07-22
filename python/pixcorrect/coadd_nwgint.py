@@ -30,11 +30,11 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
     DEFAULT_TILENAME = False
     DEFAULT_TILEID = False
     DEFAULT_ME_WGT_KEEPMASK = False
+    DEFAULT_NULL_MASK_SCI = '0'
 
     # Fix the step_name for passing the command-line arguments to the classes
     null_weights.__class__.step_name = config_section
     row_zipper.__class__.step_name   = config_section
-    
     
     def __call__(self):
         """
@@ -77,6 +77,9 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
         logger.info("Running row_zipper on: %s" % input_image)
         row_zipper.step_run(self.sci,self.config)
         logger.info("Time ZipperInterp : %s" % elapsed_time(t2))
+
+        # Null the sci image only if null_mask_sci !=0
+        self.null_sci(input_image)
         
         output_image = self.config.get(self.config_section, 'out')
         # Special write out
@@ -112,6 +115,18 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
             record={'name':'TILEID', 'value':int(tileid), 'comment':'Tile ID for DES Tilename'}
             cls.sci.header.add_record(record)
 
+
+    def null_sci(cls, input_image):
+        
+        null_mask_sci = parse_badpix_mask( cls.config.get(cls.config_section, 'null_mask_sci') )
+        if null_mask_sci !=0:
+            logger.info('Nulling science image from null_mask_bits')
+            kill  = np.array(cls.sci.mask & null_mask_sci, dtype=bool)
+            cls.sci.data[kill]  = 0.0
+        else:
+            logger.info('Science image was not null')
+
+        return
 
     def custom_weight(cls,input_image):
         # Make custom weight, that will not zero STAR maskbit
@@ -183,10 +198,12 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
         """
         null_weights.add_step_args(parser)
         row_zipper.add_step_args(parser)
-        parser.add_argument('--custom_weight', action='store_true',default=cls.DEFAULT_CUSTOM_WEIGHT,
-                            help='Run custom weights for STAR and do not write MSK plane for multi-epoch (me)')
+        #parser.add_argument('--custom_weight', action='store_true',default=cls.DEFAULT_CUSTOM_WEIGHT,
+        #                    help='Run custom weights for STAR and do not write MSK plane for multi-epoch (me)')
         parser.add_argument('--me_wgt_keepmask', action='store',default=cls.DEFAULT_ME_WGT_KEEPMASK,
-                            help='Run custom weight and preserve bits and do not write MSK plane for multi-epoch (me)')
+                            help='Run custom weight for multi-epoch (me) WGT_ME and preserve KEEPMASK')
+        parser.add_argument('--null_mask_sci', action='store',default=cls.DEFAULT_NULL_MASK_SCI,
+                            help='Names of mask bits to null (or an integer mask) on the SCI plane')
         parser.add_argument('--headfile', action='store', default=cls.DEFAULT_HEADFILE,
                             help='Headfile (containing most update information)')
         parser.add_argument('--hdupcfg', action='store', default=cls.DEFAULT_HDUPCFG,
