@@ -1,47 +1,44 @@
 import os 
 import distutils
-from distutils.core import setup
+from distutils.core import setup, Extension
 import glob
-
-import shlib 
-from shlib.build_shlib import SharedLibrary
 
 bin_files = glob.glob('bin/*')
 #inc_files = glob.glob("include/*.h") 
 #doc_files = glob.glob("doc/*.*") + glob.glob("doc/*/*") 
 
 
-libbiascorrect = SharedLibrary(
+libbiascorrect = Extension(
     'biascorrect',
     sources = ['src/libbiascorrect.c'],
     include_dirs = ['include', '%s/include' % os.environ['IMSUPPORT_DIR'], '%s/include' % os.environ['DESPYFITS_DIR']],
     extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
 
-libbpm = SharedLibrary(
+libbpm = Extension(
     'bpm',
     sources = ['src/libbpm.c'],
     include_dirs = ['include', '%s/include' % os.environ['IMSUPPORT_DIR'], '%s/include' % os.environ['DESPYFITS_DIR']],
     extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
 
-libfixcol = SharedLibrary(
+libfixcol = Extension(
     'fixcol',
     sources = ['src/libfixcol.c'],
     include_dirs = ['include', '%s/include' % os.environ['IMSUPPORT_DIR'], '%s/include' % os.environ['DESPYFITS_DIR']],
     extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
 
-libflatcorrect = SharedLibrary(
+libflatcorrect = Extension(
     'flatcorrect',
     sources = ['src/libflatcorrect.c'],
     include_dirs = ['include', '%s/include' % os.environ['IMSUPPORT_DIR'], '%s/include' % os.environ['DESPYFITS_DIR']],
     extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
 
-libmasksatr = SharedLibrary(
+libmasksatr = Extension(
     'masksatr',
     sources = ['src/libmasksatr.c'],
     include_dirs = ['include', '%s/include' % os.environ['IMSUPPORT_DIR'], '%s/include' % os.environ['DESPYFITS_DIR']],
     extra_compile_args = ['-O3','-g','-Wall','-shared','-fPIC'])
 
-libfpnumber = SharedLibrary(
+libfpnumber = Extension(
     'fpnumber',
     sources = ['src/libfpnumber.c'],
     include_dirs = ['include', '%s/include' % os.environ['IMSUPPORT_DIR'], '%s/include' % os.environ['DESPYFITS_DIR']],
@@ -49,11 +46,11 @@ libfpnumber = SharedLibrary(
 
 # The main call
 setup(name='pixcorrect',
-      version ='0.5.0',
+      version ='0.5.8',
       description = "Pixel-level image correction",
       author = "Eric Neilsen",
       author_email = "neilsen@fnal.gov",
-      shlibs = [libbiascorrect, libbpm, libfixcol, libflatcorrect, libmasksatr, libfpnumber],
+      ext_modules = [libbiascorrect, libbpm, libfixcol, libflatcorrect, libmasksatr, libfpnumber],
       packages = ['pixcorrect'],
       package_dir = {'': 'python'},
       scripts = bin_files,

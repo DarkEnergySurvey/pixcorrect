@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from pixcorrect.connect_streaks import connect_streaks
+
+if __name__ == '__main__':
+    connect_streaks.main()

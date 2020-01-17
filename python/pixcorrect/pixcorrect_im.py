@@ -1,20 +1,18 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
+# $Id: pixcorrect_im.py 47952 2019-01-03 21:04:53Z rgruendl $
+# $Rev:: 47952                            $:  # Revision of last commit.
+# $LastChangedBy:: rgruendl               $:  # Author of last commit.
+# $LastChangedDate:: 2019-01-03 15:04:53 #$:  # Date of last commit.
+
 """Do image-by-image pixel level corrections
 """
 
 # imports
-from functools import partial
-import ctypes
 import sys
-
-import numpy as np
-import pyfits
 
 from despyfits.DESImage import DESImage, DESBPMImage
 
-from pixcorrect import corr_util
-from pixcorrect import imtypes
-from pixcorrect.dbc import precondition, postcondition
 from pixcorrect.corr_util import logger
 
 from pixcorrect.bias_correct import bias_correct
@@ -28,6 +26,8 @@ from pixcorrect.sky_compress import sky_compress
 from pixcorrect.sky_subtract import sky_subtract
 from pixcorrect.bf_correct import bf_correct
 from pixcorrect.add_weight import add_weight
+from pixcorrect.lightbulb  import lightbulb
+from pixcorrect.cti        import cticheck
 from pixcorrect.starflat_correct import starflat_correct
 from pixcorrect import bfinfo
 from pixcorrect import skyinfo
@@ -39,7 +39,7 @@ class PixCorrectIm(PixCorrectMultistep):
     step_name = config_section
     description = 'Do image-by-image pixel level corrections'
     _image_types = {'bpm': DESBPMImage}
-    
+
     def image_data(self, image_name):
         """Return a DESImage object for a configured image
 
@@ -62,30 +62,30 @@ class PixCorrectIm(PixCorrectMultistep):
 
             fname = self.config.get(self.config_section, image_name)
             im = image_class.load(fname)
-            logger.info('Reading %s image from %s' % (image_name, fname))
+            logger.info('Reading %s image from %s', image_name, fname)
             self._image_data[image_name] = im
 
         return im
 
 
     @classmethod
-    def _check_return(cls,retval):
+    def _check_return(cls, retval):
         """
         Exit the program if the retval is nonzero.
         """
-        if retval!=0:
+        if retval != 0:
             sys.exit(retval)
-        return
-    
+
     def __call__(self):
         """Do image-by-image pixel level corrections
         """
-        # All the code here, asside from one call for each step, should 
+
+        # All the code here, asside from one call for each step, should
         # be assiciated with shoveling data between steps. Everything else should
         # take inside the code for its respective step.
 
         # Get the science image
-        self.sci = DESImage.load(self.config.get('pixcorrect_im','in'))
+        self.sci = DESImage.load(self.config.get('pixcorrect_im', 'in'))
 
         # Bias subtraction
         if self.do_step('bias'):
@@ -94,8 +94,8 @@ class PixCorrectIm(PixCorrectMultistep):
 
         # Linearization
         if self.do_step('lincor'):
-            lincor_fname=self.config.get('pixcorrect_im','lincor')
-            self._check_return(linearity_correct(self.sci,lincor_fname))
+            lincor_fname = self.config.get('pixcorrect_im', 'lincor')
+            self._check_return(linearity_correct(self.sci, lincor_fname))
 
         # Make the mask plane and mark saturated pixels.  Note that flags
         # are set to mark saturated pixels and keep any previously existing mask bits.
@@ -107,7 +107,7 @@ class PixCorrectIm(PixCorrectMultistep):
 
         if self.do_step('gain'):
             self._check_return(gain_correct(self.sci))
-            
+
         # If done with the BPM; let python reclaim the memory
         if not self.do_step('fixcols'):
             self.clean_im('bpm')
@@ -123,17 +123,25 @@ class PixCorrectIm(PixCorrectMultistep):
             self._check_return(bf_correct(self.sci,
                                           bf_fname,
                                           bfinfo.DEFAULT_BFMASK))
-            
+
         # Flat field
         if self.do_step('flat'):
             self._check_return(flat_correct(self.sci, self.flat))
             if not self.do_step('sky'):
                 self.clean_im('flat')
 
+        # LightBulb
+        if self.do_step('lightbulb'):
+            self._check_return(lightbulb(self.sci))
+
+        # CTI Check
+        if self.do_step('cticheck'):
+            self._check_return(cticheck(self.sci))
+
         # Make mini-sky image
         if self.do_step('mini'):
-            mini = self.config.get('pixcorrect_im','mini')
-            blocksize = self.config.getint('pixcorrect_im','blocksize')
+            mini = self.config.get('pixcorrect_im', 'mini')
+            blocksize = self.config.getint('pixcorrect_im', 'blocksize')
             self._check_return(sky_compress(self.sci,
                                             mini,
                                             blocksize,
@@ -141,8 +149,8 @@ class PixCorrectIm(PixCorrectMultistep):
 
         # Subtract sky and make weight plane - forcing option to do "sky-only" weight
         if self.do_step('sky'):
-            sky_fname = self.config.get('pixcorrect_im','sky')
-            fit_fname = self.config.get('pixcorrect_im','skyfit')
+            sky_fname = self.config.get('pixcorrect_im', 'sky')
+            fit_fname = self.config.get('pixcorrect_im', 'skyfit')
             self._check_return(sky_subtract(self.sci,
                                             fit_fname,
                                             sky_fname,
@@ -150,7 +158,7 @@ class PixCorrectIm(PixCorrectMultistep):
                                             self.flat))
             if not self.do_step('addweight'):
                 self.clean_im('flat')
-        
+
         # Star flatten
         if self.do_step('starflat'):
             self._check_return(starflat_correct(self.sci, self.starflat))
@@ -166,7 +174,7 @@ class PixCorrectIm(PixCorrectMultistep):
             # We need to fix the step_name if we want to call 'step_run'
             null_weights.__class__.step_name = self.config_section
             logger.info("Running null_weights")
-            self._check_return(null_weights.step_run(self.sci,self.config))
+            self._check_return(null_weights.step_run(self.sci, self.config))
 
         out_fname = self.config.get('pixcorrect_im', 'out')
         self.sci.save(out_fname)
@@ -179,13 +187,13 @@ class PixCorrectIm(PixCorrectMultistep):
         """
         parser.add_argument('--bias', default=None,
                             help='Bias correction image')
-        parser.add_argument('--lincor', default=None, 
+        parser.add_argument('--lincor', default=None,
                             help='linearity correction Table')
-        parser.add_argument('--bf', default=None, 
+        parser.add_argument('--bf', default=None,
                             help='brighter/fatter correction Table')
         parser.add_argument('--gain', action='store_true', default=False,
                             help='convert ADU to e- using gain values in hdr')
-        parser.add_argument('--bpm', default=None, 
+        parser.add_argument('--bpm', default=None,
                             help='bad pixel mask filename')
         parser.add_argument('--flat', default=None,
                             help='Dome flat correction image')
@@ -204,11 +212,14 @@ class PixCorrectIm(PixCorrectMultistep):
                             help='Star flat correction image')
         parser.add_argument('--addweight', action='store_true', default=False,
                             help='Add a weight map to the image if none exists')
+        parser.add_argument('--lightbulb', action='store_true', default=False,
+                            help='Perform check for known lIghtbulb(s)')
+        parser.add_argument('--cticheck', action='store_true', default=False,
+                            help='Perform check for CTI')
 
         # Adds --resaturate and --null_mask from null_weights class
         null_weights.add_step_args(parser)
 
-        return
 
 if __name__ == '__main__':
     PixCorrectIm.main()

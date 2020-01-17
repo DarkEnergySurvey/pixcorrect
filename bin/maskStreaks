@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+
+import argparse
+import logging
+import sys
+import time
+from collections import OrderedDict
+import fitsio
+import numpy as np
+import matplotlib.path
+from despyastro import wcsutil
+from despyastro import astrometry
+
+
+class MaskStreaksError(Exception):
+    def __init__(self, value):
+        self.value = value
+        super().__init__()
+    def __str__(self):
+        return repr(self.value)
+
+def streakMask(streaktab, image_data, image_header, addWidth=0., addLength=100., maxExtrapolate=None):
+    ''' Produce a list of pixels in the image that should be
+    masked for streaks in the input table.
+    streaktab is the output table of new streaks to add
+    image is a FITS HDU, with header and image data
+    addWidth is additional number of pixels to add to half-width
+    addLength is length added to each end of streak (pixels)
+    Returns:
+    ypix, xpix: 1d arrays with indices of affected pixels
+    nStreaks: number of new streaks masked
+    '''
+
+    pixscale = astrometry.get_pixelscale(image_header, units='arcsec') / 3600.
+    shape = image_data.shape
+    w = wcsutil.WCS(image_header)
+
+    use = np.logical_and(streaktab['expnum'] == image_header['EXPNUM'],
+                         streaktab['ccdnum'] == image_header['CCDNUM'])
+    logging.info(f"{np.count_nonzero(use):d} streaks found to mask")
+
+    nStreaks = 0
+    inside = None
+
+    xpix = np.array(0, dtype=int)
+    ypix = np.array(0, dtype=int)
+
+    for row in streaktab[use]:
+        if maxExtrapolate is not None:
+            if row['extrapolated'] and row['nearest'] > maxExtrapolate:
+                logging.info('Skipping extrapolated streak')
+                continue
+        width = row['width']
+        ra = np.array((row['ra1'], row['ra2']))
+        dec = np.array((row['dec1'], row['dec2']))
+        x, y = w.sky2image(ra, dec)
+
+
+        x1, x2, y1, y2 = x[0], x[1], y[0], y[1]
+
+        # Slope of the line, cos/sin form
+        mx = (x2 - x1) / np.hypot(x2 - x1, y2 - y1)
+        my = (y2 - y1) / np.hypot(x2 - x1, y2 - y1)
+
+        #displacement for width of streak:
+        wx = width / pixscale + addWidth
+        wy = wx * mx
+        wx = wx * -my
+
+        # grow length
+        x1 -= addLength * mx
+        x2 += addLength * mx
+        y1 -= addLength * my
+        y2 += addLength * my
+
+        # From Alex's immask routine: mark interior pixels
+        vertices = [(x1 + wx, y1 + wy), (x2 + wx, y2 + wy), (x2 - wx, y2 - wy), (x1 - wx, y1 - wy)]
+        vertices.append(vertices[0])  # Close the path
+
+        if inside is None:
+            # Set up coordinate arrays
+            yy, xx = np.indices(shape)
+            points = np.vstack((xx.flatten(), yy.flatten())).T
+            path = matplotlib.path.Path(vertices)
+            inside = path.contains_points(points)
+        else:
+            # use logical_and for additional streaks
+            path = matplotlib.path.Path(vertices)
+            inside = np.logical_or(inside, path.contains_points(points))
+
+        nStreaks = nStreaks + 1
+
+    logging.info(f"Masked {nStreaks:d} new streaks")
+    # Return list of masked pixels
+    if inside is None:
+        return np.array(0, dtype=int), np.array(0, dtype=int), nStreaks
+    ypix, xpix = np.nonzero(inside.reshape(shape))
+    return ypix, xpix, nStreaks
+
+def make_parser():
+    # Build the argparse for this
+    parser = argparse.ArgumentParser(description='Mask additional streaks in a DESDM image')
+    parser.add_argument('--input_file', '-i', type=str, help='Input FITS image file path')
+    parser.add_argument('--output_file', '-o', type=str, help='Output FITS image file path')
+    parser.add_argument('--streak_file', '-s', type=str, help='Streak table file path')
+    parser.add_argument('--logfile', '-l', help='Logfile name', type=str)
+    parser.add_argument('--bit_mask', type=int, help='Bit(s) to set in MSK extension, no mask change if'
+                        ' absent')
+    parser.add_argument('--null_weight', action='store_true', help='Null streaks in WGT image')
+    parser.add_argument('--add_width', type=float, help='Broaden streak width by this value (pixels)',
+                        default=0.)
+    parser.add_argument('--add_length', type=float, help='Extend streak endpoints by this value (pixels)',
+                        default=100.)
+    parser.add_argument('--max_extrapolate', type=float, help='Do not use streaks extrapolated more than'
+                        'this many degrees')
+    parser.add_argument('--verbose', '-v', help='Increase logging detail', action='count')
+
+    return parser
+
+def check_args(args):
+    if not args.input_file:
+        logging.error('input_file not given')
+        raise MaskStreaksError('input_file not given')
+    if not args.output_file:
+        logging.error('output_file not given')
+        raise MaskStreaksError('output_file not given')
+    if not args.streak_file:
+        logging.error('streak_file not given')
+        raise MaskStreaksError('streak_file not given')
+
+if __name__ == '__main__':
+    parser = make_parser()
+    args = parser.parse_args()
+
+    # Set up logfile if there is one
+    if args.verbose is None or args.verbose == 0:
+        level = logging.WARNING
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    if args.logfile is None:
+        # Logging to screen, set level
+        logging.basicConfig(level=level)
+    else:
+        logging.basicConfig(filename=args.logfile,
+                            filemode='w',
+                            level=level)
+
+    try:
+        check_args(args)
+    except MaskStreaksError:
+        sys.exit(1)
+
+
+    # Read the streaks table first
+    try:
+        tab = fitsio.FITS(args.streak_file)
+        streaks = tab[1].read()
+    except:
+        logging.error(f"Could not read streak file {args.streak_file:s}")
+        sys.exit(1)
+
+    try:
+        header = OrderedDict()
+        hdu = OrderedDict()
+        data = OrderedDict()
+        with fitsio.FITS(args.input_file) as fits:
+            for k in xrange(len(fits)):
+                h = fits[k].read_header()
+                d = fits[k].read()
+                # Make sure that we can get the EXTNAME
+                if not h.get('EXTNAME'):
+                    continue
+                extname = h['EXTNAME'].strip()
+                if extname == 'COMPRESSED_IMAGE':
+                    continue
+                header[extname] = h
+                hdu[extname] = k
+                data[extname] = d
+    except:
+        logging.error(f"Could not read input file {args.input_file:s}")
+        sys.exit(1)
+
+    ymask, xmask, nStreaks = streakMask(streaks, data['SCI'], header['SCI'],
+                                        addWidth=args.add_width,
+                                        addLength=args.add_length,
+                                        maxExtrapolate=args.max_extrapolate)
+
+
+    print(type(xmask), xmask)
+    print(type(ymask), ymask)
+    if args.bit_mask:
+        logging.info('Setting bits in MSK image')
+        data['MSK'][ymask, xmask] |= args.bit_mask
+
+    if args.null_weight:
+        logging.info('Nulling WGT pixels')
+        data['WGT'][ymask, xmask] = 0.
+        #data['SCI'][ymask,xmask] = 1e9
+
+    header['SCI']['HISTORY'] = time.asctime(time.localtime()) + f" masked {nStreaks:d} streaks from {args.streak_file:s}"
+
+    logging.info('Writing to ' + args.output_file)
+    ofits = fitsio.FITS(args.output_file, 'rw', clobber=True)
+    for EXTNAME in ['SCI', 'MSK', 'WGT']:
+        ofits.write(data[EXTNAME], extname=EXTNAME, header=header[EXTNAME])

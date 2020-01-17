@@ -1,15 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Gain Correct image (convert pixel values from ADU to electrons)
 """
 
-import ctypes
-from os import path
 import numpy as np
-from pixcorrect import proddir
+
 from pixcorrect.corr_util import logger, do_once
-from despyfits.DESImage import DESImage, DESImageCStruct, section2slice, data_dtype
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import decaminfo
+from despyfits.DESImage import section2slice
 
 # Which section of the config file to read for this step
 config_section = 'gain'
@@ -19,7 +17,7 @@ class GainCorrect(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
-    @do_once(1,'DESGAINC')
+    @do_once(1, 'DESGAINC')
     def __call__(cls, image):
         """Convert pixel values from ADU to electrons, including weight or variance
         image and critical keywords.
@@ -29,33 +27,33 @@ class GainCorrect(PixCorrectImStep):
 
         Applies the correction "in place"
         """
- 
+
         logger.info('Gain Correcting Image')
 
         saturate = 0.
         gains = []
         for amp in decaminfo.amps:
-            sec = section2slice( image['DATASEC'+amp])
-            gain = image['GAIN'+amp]
+            sec = section2slice(image['DATASEC' + amp])
+            gain = image['GAIN' + amp]
             gains.append(gain)
-            image.data[sec]*=gain
+            image.data[sec] *= gain
 
             # Adjust the weight or variance image if present:
             if image.weight is not None:
-                image.weight[sec] *= 1./(gain*gain)
+                image.weight[sec] *= 1. / (gain * gain)
             if image.variance is not None:
-                image.variance[sec] *= (gain*gain)
+                image.variance[sec] *= gain * gain
 
-            # Adjust keywords 
-            image['GAIN'+amp] = image['GAIN'+amp] / gain
-            image['SATURAT'+amp] = image['SATURAT'+amp] * gain
-            saturate = max(saturate, image['SATURAT'+amp])
+            # Adjust keywords
+            image['GAIN' + amp] = image['GAIN' + amp] / gain
+            image['SATURAT' + amp] = image['SATURAT' + amp] * gain
+            saturate = max(saturate, image['SATURAT' + amp])
             # Scale the SKYVAR if it's already here
-            kw = 'SKYVAR'+amp
+            kw = 'SKYVAR' + amp
             if kw in image.header.keys():
                 image[kw] = image[kw] * gain * gain
             # The FLATMED will keep track of rescalings *after* gain:
-            image['FLATMED'+amp] = 1.
+            image['FLATMED' + amp] = 1.
 
         # The SATURATE keyword is assigned to maximum of the two amps.
         image['SATURATE'] = saturate
@@ -63,15 +61,15 @@ class GainCorrect(PixCorrectImStep):
         # Some other keywords that we will adjust crudely with mean gain
         # if they are present:
         gain = np.mean(gains)
-        for kw in ('SKYBRITE','SKYSIGMA'):
+        for kw in ('SKYBRITE', 'SKYSIGMA'):
             if kw in image.header.keys():
                 image[kw] = image[kw] * gain
-                
+
         # One other keyword to adjust:
         image['BUNIT'] = 'electrons'
-        
+
         logger.debug('Finished applying Gain Correction')
-        ret_code=0
+        ret_code = 0
         return ret_code
 
 
@@ -84,8 +82,8 @@ class GainCorrect(PixCorrectImStep):
             - `config`: the configuration from which to get other parameters
 
         """
-        logger.info('Gain correction will be applied to %s' % image)
-    
+        logger.info('Gain correction will be applied to %s', image)
+
         ret_code = cls.__call__(image)
         return ret_code
 

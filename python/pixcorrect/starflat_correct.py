@@ -1,17 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Apply a star flat correction to a raw DES image.
 Uses all the code from flat_combine but changes only the FITS
 keywords used to register actions
 """
 
 from os import path
-import numpy as np
-from pixcorrect import proddir
-from pixcorrect.corr_util import logger, do_once
-from despyfits.DESImage import DESImage
-from despyfits import maskbits
-from pixcorrect.PixCorrectDriver import PixCorrectImStep
-from pixcorrect import decaminfo
+from pixcorrect.corr_util import do_once
 from pixcorrect.flat_correct import FlatCorrect
 
 # Which section of the config file to read for this step
@@ -22,7 +16,7 @@ class StarFlatCorrect(FlatCorrect):
     step_name = config_section
 
     @classmethod
-    @do_once(1,'DESSTAR')
+    @do_once(1, 'DESSTAR')
     def __call__(cls, image, flat_im):
         """Apply a flat field correction to an image
 

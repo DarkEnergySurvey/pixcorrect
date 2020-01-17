@@ -1,13 +1,10 @@
-#!/usr/bin/env python
-"""Apply a bias correction to a raw DES image 
+#!/usr/bin/env python3
+"""Apply a bias correction to a raw DES image
 """
 
-from os import path
-import numpy as np
-from pixcorrect import proddir
-from pixcorrect.corr_util import logger, do_once
-from despyfits.DESImage import DESImage
+from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
+from despyfits.DESImage import DESImage
 
 # Which section of the config file to read for this step
 config_section = 'imgdiff'
@@ -27,14 +24,14 @@ class ImageDiff(PixCorrectImStep):
 
         Applies the correction "in place"
         """
- 
+
         logger.info('Taking Difference')
         image.data -= comp_im.data
         # If we have two weight images, add variance of the bias to the image's
-        if (image.weight is not None or image.variance is not None):
+        if image.weight is not None or image.variance is not None:
             if comp_im.weight is not None:
                 var = image.get_variance()
-                var += 1./comp_im.weight
+                var += 1. / comp_im.weight
             elif comp_im.variance is not None:
                 var = image.get_variance()
                 var += comp_im.variance
@@ -54,9 +51,9 @@ class ImageDiff(PixCorrectImStep):
         """
 
         comp_fname = config.get(cls.step_name, 'comp')
-        logger.info('reading Comparison image from %s'% comp_fname)
+        logger.info('reading Comparison image from %s', comp_fname)
         comp_im = DESImage.load(comp_fname)
-    
+
         ret_code = cls.__call__(image, comp_im)
         return ret_code
 

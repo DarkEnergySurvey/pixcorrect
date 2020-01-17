@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from pixcorrect.coadd_nwgint import CoaddZipperInterpNullWeight
 

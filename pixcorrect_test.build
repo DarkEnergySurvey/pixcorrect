@@ -8,12 +8,12 @@ export PRODUCT_DIR=$HOME/build-test/pixcorrect
 echo "Will Install to: $PRODUCT_DIR"
 
 source $EUPS_DIR/desdm_eups_setup.sh
-setup -v scipy 0.14.0+7
-setup -v despyfits 0.5.1+2
+setup -v scipy 0.14.0+9
+setup -v despyfits 0.5.3+0
 #setup -v -r ~/build-test/despyfits
 
 export PYTHONPATH=$PRODUCT_DIR/python:$PYTHONPATH
-python setup.py install --prefix=$PRODUCT_DIR --install-lib=$PRODUCT_DIR/python
+python3 setup.py install --prefix=$PRODUCT_DIR --install-lib=$PRODUCT_DIR/python
 
 echo " ----------------------------------------"
 echo " Make sure you setup pixcorrect by doing:"

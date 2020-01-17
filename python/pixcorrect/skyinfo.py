@@ -36,6 +36,7 @@ class SkyError(Exception):
     """
     def __init__(self, value):
         self.value = value
+        super().__init__()
     def __str__(self):
         return repr(self.value)
 
@@ -48,18 +49,17 @@ def parse_ranges(ccdlist):
     s = set()
     for r1 in ccdlist.split(','):
         r2 = r1.split('-')
-        if len(r2)==1:
+        if len(r2) == 1:
             s.add(int(r2[0]))
-        elif len(r2)==2:
-            for j in range(int(r2[0]),int(r2[1])+1):
+        elif len(r2) == 2:
+            for j in range(int(r2[0]), int(r2[1]) + 1):
                 s.add(j)
         else:
             raise ValueError('Bad integer range expression in parse_ranges: ' + r1)
     return sorted(s)
 
-            
 
-class MiniDecam(object):
+class MiniDecam:
     """
     Class holding a decimated image of the full DECam science array.
     Each pixel in this image represents a (blocksize x blocksize) region in
@@ -86,8 +86,8 @@ class MiniDecam(object):
                  blocksize=DEFAULT_BLOCKSIZE,
                  mask_value=DEFAULT_MASK_VALUE,
                  invalid=DEFAULT_IGNORE.split(','),
-                 header = None,
-                 halfS7 = True):
+                 header=None,
+                 halfS7=True):
         """
         MiniDecam is compressed version of chosen subset of full science array.
 
@@ -107,14 +107,14 @@ class MiniDecam(object):
                 self.invalid.add(detpos.strip())
         self.header = fitsio.FITSHDR(header)
         self.halfS7 = halfS7
-        
+
         self._chip = [decaminfo.shape[0] / blocksize,
-                       decaminfo.shape[1] / blocksize]  # The shape of a decimated CCD
-        if decaminfo.shape[0]%self._chip[0] != 0 or \
-           decaminfo.shape[1]%self._chip[1] != 0:
+                      decaminfo.shape[1] / blocksize]  # The shape of a decimated CCD
+        if decaminfo.shape[0] % self._chip[0] != 0 or \
+           decaminfo.shape[1] % self._chip[1] != 0:
             # Raise exception if image is not multiple of blocksize.
             raise SkyError('MiniImage blocksize ' + str(blocksize) +
-                            ' does not evenly divide images')
+                           ' does not evenly divide images')
 
         # Get the smallest x,y coords in unbinned uber-system
         x0 = None
@@ -126,49 +126,47 @@ class MiniDecam(object):
             if x0 is None:
                 x0 = xy[0]
                 y0 = xy[1]
-            x0 = min(x0,xy[0])
-            y0 = min(y0,xy[1])
+            x0 = min(x0, xy[0])
+            y0 = min(y0, xy[1])
         self.xmin = x0
         self.ymin = y0
-        
+
         xmax = 0
         ymax = 0
         for detpos in decaminfo.ccdnums.keys():
             if detpos in self.invalid:
                 continue
-            y,x = self._corner_of(detpos)
-            if self.halfS7 and detpos=='S7':
-                xmax = max(xmax, x+self._chip[1]/2)
+            y, x = self._corner_of(detpos)
+            if self.halfS7 and detpos == 'S7':
+                xmax = max(xmax, x + self._chip[1] / 2)
             else:
-                xmax = max(xmax, x+self._chip[1])
-            ymax = max(ymax, y+self._chip[0])
+                xmax = max(xmax, x + self._chip[1])
+            ymax = max(ymax, y + self._chip[0])
 
         # Create the data and mask images
-        self.data = np.ones( (ymax,xmax), dtype=data_dtype) * self.mask_value
+        self.data = np.ones((ymax, xmax), dtype=data_dtype) * self.mask_value
         self.mask = np.zeros(self.data.shape, dtype=bool)
 
         # Mark all useful regions in mask:
         for detpos in decaminfo.ccdnums.keys():
             if detpos in self.invalid:
                 continue
-            y,x = self._corner_of(detpos)
-            if self.halfS7 and detpos=='S7':
-                self.mask[y:y+self._chip[0], x:x+self._chip[1]/2] = True
+            y, x = self._corner_of(detpos)
+            if self.halfS7 and detpos == 'S7':
+                self.mask[y:y + self._chip[0], x:x + self._chip[1] / 2] = True
             else:
-                self.mask[y:y+self._chip[0], x:x+self._chip[1]] = True
-                
-        return
+                self.mask[y:y + self._chip[0], x:x + self._chip[1]] = True
 
-    def _corner_of(self,detpos):
+    def _corner_of(self, detpos):
         """
         Return 2d coordinates of the (0,0) pixel of this detector.
         """
         if detpos in self.invalid or detpos not in decaminfo.ccdnums.keys():
             raise SkyError('Invalid detpos in MiniDecam: ' + detpos)
-            
-        x = (decaminfo.ccdCorners[detpos][0]-self.xmin)/self.blocksize
-        y = (decaminfo.ccdCorners[detpos][1]-self.ymin)/self.blocksize
-        return y,x
+
+        x = (decaminfo.ccdCorners[detpos][0] - self.xmin) / self.blocksize
+        y = (decaminfo.ccdCorners[detpos][1] - self.ymin) / self.blocksize
+        return y, x
 
     @property
     def coeffs(self):
@@ -184,18 +182,17 @@ class MiniDecam(object):
         return np.array(c, dtype=float)
 
     @coeffs.setter
-    def coeffs(self,c):
+    def coeffs(self, c):
         # First get rid of any existing SKYPC values
         for ipc in range(MAX_PC):
             kw = 'SKYPC{:>02d}'.format(ipc)
             if kw in self.header:
                 self.header.delete(kw)
         # Then add new ones.
-        for ipc,val in enumerate(c):
+        for ipc, val in enumerate(c):
             kw = 'SKYPC{:>02d}'.format(ipc)
             self.header[kw] = float(val)
-        return
-        
+
     @property
     def rms(self):
         """
@@ -204,9 +201,8 @@ class MiniDecam(object):
         return self.header['SKYRMS']
 
     @rms.setter
-    def rms(self,rms):
+    def rms(self, rms):
         self.header['SKYRMS'] = rms
-        return
 
     @property
     def frac(self):
@@ -216,11 +212,10 @@ class MiniDecam(object):
         return self.header['SKYFRAC']
 
     @frac.setter
-    def frac(self,frac):
+    def frac(self, frac):
         self.header['SKYFRAC'] = frac
-        return
-        
-    def fill(self,data, detpos):
+
+    def fill(self, data, detpos):
         """
         Fill the portion of the mini-image corresponding to detpos with the
         array given by data.  Does not do anything for ignored chips.
@@ -229,13 +224,12 @@ class MiniDecam(object):
             return
         if data.shape != tuple(self._chip):
             raise SkyError('MiniDecam.fill input data has wrong shape ' + str(data.shape))
-        y,x = self._corner_of(detpos)
-        if self.halfS7 and detpos=='S7':
-            self.data[ y:y+self._chip[0], x:x+self._chip[1]/2 ] = \
-              data[:,:data.shape[1]/2]
+        y, x = self._corner_of(detpos)
+        if self.halfS7 and detpos == 'S7':
+            self.data[y:y + self._chip[0], x:x + self._chip[1] / 2] = \
+              data[:, :data.shape[1] / 2]
         else:
-            self.data[ y:y+self._chip[0], x:x+self._chip[1] ] = data
-        return
+            self.data[y:y + self._chip[0], x:x + self._chip[1]] = data
 
     def vector(self):
         """
@@ -244,25 +238,24 @@ class MiniDecam(object):
         """
         return self.data[self.mask]
 
-    def fill_from(self,vectorIn):
+    def fill_from(self, vectorIn):
         """
         Set the data array equal to the values in the flattened array vectorIn
         """
         self.data[self.mask] = vectorIn
-        return
 
-    def index_of(self,detpos, j, i):
+    def index_of(self, detpos, j, i):
         """
         Return the index in the flattened vector() that would contain pixel (j,i)
         in *compressed* version of the chosen CCD.  (j,i) are in the numpy convention.
         Raises an exception for an invalid detpos.
         """
         tmp = np.zeros_like(self.mask)
-        y,x = self._corner_of(detpos)
-        tmp[y+j, x+i] = True
+        y, x = self._corner_of(detpos)
+        tmp[y + j, x + i] = True
         return np.where(tmp[self.mask])[0][0]
 
-    def edges(self,npix):
+    def edges(self, npix):
         """
         Return a new MiniDECam which has value of 1 in pixels that are
         within npix of the edge of a CCD, and 0 in other valid pixels.
@@ -275,7 +268,7 @@ class MiniDecam(object):
         out = MiniDecam(blocksize=self.blocksize,
                         mask_value=self.mask_value,
                         invalid=self.invalid,
-                        halfS7 = self.halfS7)
+                        halfS7=self.halfS7)
         # Then set all unmasked pixels to zero:
         out.data[out.mask] = 0.
 
@@ -283,18 +276,18 @@ class MiniDecam(object):
         for detpos in decaminfo.ccdnums.keys():
             if detpos in self.invalid:
                 continue
-            y,x = self._corner_of(detpos)
+            y, x = self._corner_of(detpos)
             yend = y + self._chip[0]
             xend = x + self._chip[1]
-            if self.halfS7 and detpos=='S7':
-                xend = x + self._chip[1]/2
-            out.data[y:y+npix,      x:xend] = 1.
-            out.data[yend-npix:yend,x:xend] = 1.
-            out.data[y:yend,        x:x+npix] = 1.
-            out.data[y:yend,        xend-npix:xend] = 1.
+            if self.halfS7 and detpos == 'S7':
+                xend = x + self._chip[1] / 2
+            out.data[y:y + npix, x:xend] = 1.
+            out.data[yend - npix:yend, x:xend] = 1.
+            out.data[y:yend, x:x + npix] = 1.
+            out.data[y:yend, xend - npix:xend] = 1.
         return out
 
-    def save(self,filename):
+    def save(self, filename):
         """
         Save the mini-image to primary extension of a FITS file.
         """
@@ -304,12 +297,11 @@ class MiniDecam(object):
             self.header['HALFS7'] = ''
         baddet = ''
         for detpos in self.invalid:
-            if len(baddet)>0:
+            if baddet:
                 baddet = baddet + ','
             baddet = baddet + detpos
         self.header['BADDET'] = baddet
         fitsio.write(filename, self.data, header=self.header, clobber=True)
-        return
 
     def copy_header_info(self, source, keywords, require=False):
         """
@@ -324,18 +316,17 @@ class MiniDecam(object):
             try:
                 value = source[kw]
                 self.header[kw] = value
-            except (ValueError,KeyError):
+            except (ValueError, KeyError):
                 if require:
                     raise KeyError('copy_header_info did not find required keyword ' + kw)
-        return
-    
+
     @classmethod
     def load(cls, filename):
         """
         Extracts mini-image and header from primary extension of the given FITS file.
         Returns image,header
         """
-        d,hdr = fitsio.read(filename,header=True)
+        d, hdr = fitsio.read(filename, header=True)
         blocksize = hdr['BLOCKSIZ']
         mask_value = hdr['MASKVAL']
         halfS7 = 'HALFS7' in hdr.keys()
@@ -344,7 +335,7 @@ class MiniDecam(object):
         out.data = d
         return out
 
-class MiniskyPC(object):
+class MiniskyPC:
     """
     Class containing principle components of compressed sky images.
     """
@@ -353,8 +344,8 @@ class MiniskyPC(object):
                  blocksize=DEFAULT_BLOCKSIZE,
                  mask_value=DEFAULT_MASK_VALUE,
                  invalid=DEFAULT_IGNORE.split(','),
-                 header = None,
-                 halfS7 = True):
+                 header=None,
+                 halfS7=True):
         """
         :Parameters:
 
@@ -370,22 +361,21 @@ class MiniskyPC(object):
         self.header = fitsio.FITSHDR(header)
         self.halfS7 = halfS7
         # ?? Check that dimensions of U match the size of a MiniSky with chosen params
-        return
 
     @classmethod
-    def load(cls,filename):
+    def load(cls, filename):
         """
         Retrieve PC's from a FITS file, from primary or specified extension
         """
-        U,hdr = fitsio.read(filename,ext='U', header=True)
+        U, hdr = fitsio.read(filename, ext='U', header=True)
         blocksize = hdr['BLOCKSIZ']
         mask_value = hdr['MASKVAL']
         halfS7 = 'HALFS7' in hdr.keys()
         invalid = [j.strip() for j in hdr['BADDET'].split(',')]
-        return cls(U, blocksize=blocksize, mask_value=mask_value, 
+        return cls(U, blocksize=blocksize, mask_value=mask_value,
                    invalid=invalid, halfS7=halfS7, header=hdr)
 
-    def save(self,filename):
+    def save(self, filename):
         """
         Save the PCs into a FITS file of the given name, in specified extension
         Clobber=True by default; otherwise will always append a new extension to the file
@@ -396,12 +386,11 @@ class MiniskyPC(object):
             self.header['HALFS7'] = ''
         baddet = ''
         for detpos in self.invalid:
-            if len(baddet)>0:
+            if baddet:
                 baddet = baddet + ','
             baddet = baddet + detpos
         self.header['BADDET'] = baddet
         fitsio.write(filename, self.U, extname='U', clobber=True, header=self.header)
-        return
 
     def fit(self, mini, clip_sigma=3.):
         """
@@ -423,56 +412,55 @@ class MiniskyPC(object):
         # Restrict the data and the templates to the superpixels where we have valid data
         use = y != mini.mask_value
         y = y[use]
-        x = self.U[use,:]
-        
+        x = self.U[use, :]
+
         # Create first guess as simply the 0th template, scaled to match median
-        aStart = np.zeros(x.shape[1],dtype=float)
-        aStart[0] = np.median(y / x[:,0])
+        aStart = np.zeros(x.shape[1], dtype=float)
+        aStart[0] = np.median(y / x[:, 0])
         # Determine a sigma for the residuals and build a cost function, 4-sigma clipping
-        avg,var,n = clippedMean(y-x[:,0]*aStart[0],4)
-        cost = ClippedCost(4*np.sqrt(var))
+        _, var, n = clippedMean(y - x[:, 0] * aStart[0], 4)
+        cost = ClippedCost(4 * np.sqrt(var))
         # Initial fit
         a = linearFit(y, x.T, aStart, cost)
         # Repeat fit with updated variance estimate and clipping threshold
-        avg,var,n = clippedMean(y-np.dot(x,a),4)
-        cost = ClippedCost(clip_sigma*np.sqrt(var))
+        _, var, n = clippedMean(y - np.dot(x, a), 4)
+        cost = ClippedCost(clip_sigma * np.sqrt(var))
         a = linearFit(y, x.T, a, cost)
 
         # Get statistics of fractional residuals to this fit
-        avg,var,n = clippedMean(y/np.dot(x,a)-1.,clip_sigma)
+        avg, var, n = clippedMean(y / np.dot(x, a) - 1., clip_sigma)
         v = mini.vector()
-        v[use] = y / np.dot(x,a) - 1.
+        v[use] = y / np.dot(x, a) - 1.
         mini.fill_from(v)
         mini.coeffs = a
         mini.rms = np.sqrt(var)
-        mini.frac = 1.-float(n)/len(y)
-        return
+        mini.frac = 1. - float(n) / len(y)
 
     def get_pc(self, ipc):
         """
         Return a MiniDecam object that contains values of one of the principal components
         """
-        if ipc<0 or ipc>=self.U.shape[1]:
+        if ipc < 0 or ipc >= self.U.shape[1]:
             raise SkyError('Request for non-existent PC #{:d}' \
                            ' in MiniskyPC.get_pc'.format(ipc))
         out = MiniDecam(blocksize=self.blocksize,
-                        mask_value = self.mask_value,
-                        invalid = self.invalid,
-                        halfS7 = self.halfS7)
-        out.fill_from(self.U[:,ipc])
+                        mask_value=self.mask_value,
+                        invalid=self.invalid,
+                        halfS7=self.halfS7)
+        out.fill_from(self.U[:, ipc])
         return out
-    
+
     @classmethod
     def get_exposures(cls, filename):
         """
         Get table of information on individual exposures from the named MiniskyPC file
         """
-        tab1 = fitsio.read(filename,ext='EXPOSURES')
-        tab = {'EXPNUM':tab1['EXPNUM'],
-               'COEFFS':tab1['COEFFS'],
-               'RMS':tab1['RMS'],
-               'FRAC':tab1['FRAC'],
-               'USE': (tab1['USE']!=0)} # *** Need to convert byte to bool for fitsio bug
+        tab1 = fitsio.read(filename, ext='EXPOSURES')
+        tab = {'EXPNUM': tab1['EXPNUM'],
+               'COEFFS': tab1['COEFFS'],
+               'RMS': tab1['RMS'],
+               'FRAC': tab1['FRAC'],
+               'USE': (tab1['USE'] != 0)} # *** Need to convert byte to bool for fitsio bug
         return tab
 
     @classmethod
@@ -480,7 +468,7 @@ class MiniskyPC(object):
         """
         Get vector of the RMS signal in each PC from an exposure table stored with it
         """
-        h = fitsio.read_header(filename,ext='EXPOSURES')
+        h = fitsio.read_header(filename, ext='EXPOSURES')
         rms = []
         for i in range(MAX_PC):
             try:
@@ -497,28 +485,27 @@ class MiniskyPC(object):
         results for exposures.
         """
         # *** Note saving the USE array in bytes since fitsio has a bug reading bools
-        tab = {'EXPNUM':np.array(expnums,dtype=np.int32),
-                'COEFFS':coeffs,
-                'RMS':rms,
-                'FRAC':frac,
-                'USE':np.array(use,dtype=np.int8)}
-            
+        tab = {'EXPNUM': np.array(expnums, dtype=np.int32),
+               'COEFFS': coeffs,
+               'RMS': rms,
+               'FRAC': frac,
+               'USE': np.array(use, dtype=np.int8)}
+
         # Place the rms in each PC into header keywords
         h = {}
-        for i in range(min(MAX_PC,len(s))):
+        for i in range(min(MAX_PC, len(s))):
             h['PCRMS{:02d}'.format(i)] = s[i]
-        with fitsio.FITS(filename,'rw') as fits:
+        with fitsio.FITS(filename, 'rw') as fits:
             fits.write(tab, header=h, extname='EXPOSURES')
-        return
 
-class SkyPC(object):
+class SkyPC:
     """
     Full-resolution sky principal components (templates)
     """
     # ??? Add ability to use templates that have been subsampled to save I/O time.
 
     extname = 'TEMPLATES'
-    
+
     def __init__(self, d, detpos, header=None):
         """
         A sky pc is a 3d array with index 0 enumerating 2d principal components of sky.
@@ -526,39 +513,37 @@ class SkyPC(object):
         self.d = np.array(d)
         self.detpos = detpos
         self.header = fitsio.FITSHDR(header)
-        return
 
     @classmethod
     def load(cls, filename):
         """
         Get a sky pc from the 3d array stored in named extension of FITS file
         """
-        d,h = fitsio.read(filename, ext=cls.extname, header=True)
+        d, h = fitsio.read(filename, ext=cls.extname, header=True)
         if len(d.shape) != 3:
             raise SkyError("SkyTemplates.load did not find 3d array in " + filename)
         detpos = h['DETPOS']
-        return cls(d,detpos,header=h)
+        return cls(d, detpos, header=h)
 
     def save(self, filename):
         """
         Save a sky pc as a FITS file under given extension name (or primary).
         If clobber=False, it is appended as a new extension.
         """
-        self.header['DETPOS']=self.detpos
-        self.header['CCDNUM']=decaminfo.ccdnums[self.detpos]
+        self.header['DETPOS'] = self.detpos
+        self.header['CCDNUM'] = decaminfo.ccdnums[self.detpos]
         fitsio.write(filename, self.d, extname=self.extname, clobber=True, header=self.header)
-        return
 
     def sky(self, coeffs):
         """
         Return a 2d array constructed from applying the specified coefficients
         """
-        if len(coeffs.shape)!=1 or self.d.shape[0] != len(coeffs):
+        if len(coeffs.shape) != 1 or self.d.shape[0] != len(coeffs):
             raise SkyError("Wrong number of coefficients for SkyTemplates.sky: " +
                            str(coeffs.shape))
         # ?? or return np.tensordot(coeffs, self.d, axes=1)
-        return np.sum(coeffs[:,np.newaxis,np.newaxis]*self.d, axis=0)
-    
+        return np.sum(coeffs[:, np.newaxis, np.newaxis] * self.d, axis=0)
+
 
 def linearFit(y, x, aStart, cost, dump=False):
     """
@@ -580,22 +565,22 @@ def linearFit(y, x, aStart, cost, dump=False):
     iterations = 0
     MAX_ITERATIONS = 10
     COST_TOLERANCE = 0.01
-    while (iterations < MAX_ITERATIONS):
+    while iterations < MAX_ITERATIONS:
         dy = y - np.dot(a, x)
         totcost, d1, d2 = cost(dy)
         if dump:
-            print iterations,':',totcost, a
-        if oldCost!=None:
-            if oldCost - totcost < COST_TOLERANCE*oldCost:
+            print(iterations, ':', totcost, a)
+        if oldCost is not None:
+            if oldCost - totcost < COST_TOLERANCE * oldCost:
                 # done!
                 return a
         oldCost = totcost
-            
+
         # do an update
         beta = np.dot(x, d1)
-        alpha = np.dot(x*d2, x.T)
+        alpha = np.dot(x * d2, x.T)
         a += np.linalg.solve(alpha, beta)
-    print "Too many iterations in linearFit"
+    print("Too many iterations in linearFit")
     return np.zeros_like(aStart)
 
 class ClippedCost:
@@ -605,11 +590,10 @@ class ClippedCost:
     """
     def __init__(self, limit):
         self.limit = limit
-        return
+
     def __call__(self, data):
         use = np.abs(data) < self.limit
-        cost = np.sum((data*data)[use]) / np.count_nonzero(use)
-        d1 = np.where(use,data,0.)
+        cost = np.sum((data * data)[use]) / np.count_nonzero(use)
+        d1 = np.where(use, data, 0.)
         d2 = np.where(use, 1., 0.)
-        return cost,d1,d2
-
+        return cost, d1, d2
