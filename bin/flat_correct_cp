@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from pixcorrect.flat_correct_cp import flat_correct_cp
 

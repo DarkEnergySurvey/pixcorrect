@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from pixcorrect.linearity_correct import linearity_correct
 

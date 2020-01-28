@@ -20,60 +20,60 @@ def clippedMean(a, nSigma, axis=None, sigma=None, sigmaFloor=None, maxSample=Non
     n      = number of unclipped points.
     Each is scalar if axis==None, or 1 lower dimension than input array.
     """
-    if axis==None:
+    if axis is None:
         dataLength = len(a.flatten())
     else:
         dataLength = a.shape[axis]
-    if maxSample==None or dataLength <= maxSample:
+    if maxSample is None or dataLength <= maxSample:
         sample = a
     else:
         # Subsample the data in deriving clipping limits
-        step = (dataLength-1)/maxSample + 1
-        if axis==None:
+        step = (dataLength - 1) / maxSample + 1
+        if axis is None:
             sample = a.flatten()[::step]
         else:
             s = []
-            for i in range(0,axis):
+            for _ in range(0, axis):
                 s.append(slice(None))
-            s.append(slice(None,None,step))
-            for i in range(axis+1,len(a.shape)):
+            s.append(slice(None, None, step))
+            for i in range(axis + 1, len(a.shape)):
                 s.append(slice(None))
             sample = a[s]
-                
-    if sigma==None:
+
+    if sigma is None:
         # Determine sigma from IQD
         iqdSigma = 1.349
         p75 = np.percentile(sample, 75., axis=axis)
         p25 = np.percentile(sample, 25., axis=axis)
-        if sigmaFloor==None:
+        if sigmaFloor is None:
             # Use the IQD straight up:
-            upper = (0.5+nSigma/iqdSigma)*p75 + (0.5-nSigma/iqdSigma)*p25
-            lower = (0.5-nSigma/iqdSigma)*p75 + (0.5+nSigma/iqdSigma)*p25
+            upper = (0.5 + nSigma / iqdSigma) * p75 + (0.5 - nSigma / iqdSigma) * p25
+            lower = (0.5 - nSigma / iqdSigma) * p75 + (0.5 + nSigma / iqdSigma) * p25
         else:
             # set sigma as maximum of IQD and the floor
-            dev = nSigma*np.maximum( (p75-p25)/iqdSigma, sigmaFloor)
-            mid = 0.5*(p25+p75)
-            lower = mid-dev
-            upper = mid+dev
+            dev = nSigma * np.maximum((p75 - p25)/iqdSigma, sigmaFloor)
+            mid = 0.5 * (p25 + p75)
+            lower = mid - dev
+            upper = mid + dev
     else:
         # use prescribed sigma about median
         med = np.median(sample, axis=axis)
-        upper = med + nSigma*sigma
-        lower = med - nSigma*sigma
+        upper = med + nSigma * sigma
+        lower = med - nSigma * sigma
 
-    if axis==None:
+    if axis is None:
         data = ma.masked_outside(a, lower, upper)
     else:
         # Need to broadcast the upper and lower bounds across chosen axis
-        bshape = a.shape[:axis] + (1,) + a.shape[axis+1:]
-        mask = np.logical_or(a < lower.reshape(bshape), a>upper.reshape(bshape))
+        bshape = a.shape[:axis] + (1,) + a.shape[axis + 1:]
+        mask = np.logical_or(a < lower.reshape(bshape), a > upper.reshape(bshape))
         data = ma.masked_where(mask, a, copy=False)
-    if axis==None:
+    if axis is None:
         # Force return of double precision to use this for accumulating mean & avoid roundoff
         return data.mean(dtype=np.float64), data.var(dtype=np.float64), data.count()
-    else:
-        # A problem is that count() appears to return float data if it returns an array.
-        # Also need to force calculation of the mean and variance in double precision
-        return data.mean(axis=axis, dtype=np.float64).astype(np.float32), \
-          data.var(axis=axis, dtype=np.float64).astype(np.float32), \
-          data.count(axis=axis).astype(np.int32)
+
+    # A problem is that count() appears to return float data if it returns an array.
+    # Also need to force calculation of the mean and variance in double precision
+    return data.mean(axis=axis, dtype=np.float64).astype(np.float32), \
+           data.var(axis=axis, dtype=np.float64).astype(np.float32), \
+           data.count(axis=axis).astype(np.int32)

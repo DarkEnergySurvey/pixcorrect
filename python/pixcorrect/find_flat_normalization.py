@@ -1,18 +1,14 @@
-#!/usr/bin/env python
+#!/usr/bin/env 3
 """Find a normalization for a set of flat field images
 """
 
-import ctypes
-import sys
 import os
 #from os import path
 import fitsio
 import numpy as np
-from pixcorrect import proddir
-from pixcorrect.corr_util import logger, load_shlib
-from despyfits.DESImage import DESImage, DESImageCStruct, scan_fits_section, data_dtype
+
+from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectStep, filelist_to_list
-from pixcorrect import decaminfo
 
 # Which section of the config file to read for this step
 config_section = 'findflatnorm'
@@ -32,48 +28,46 @@ class FindFlatNormalization(PixCorrectStep):
         """Apply a flat field correction to an image
 
         :Parameters:
-            - `in_filenames`: list of input DESImage(s) to use to determine the normalization factor 
-            - `ccdnorm`: -1-->normalize to median of all files, or to image with CCDNUM=ccdnorm 
+            - `in_filenames`: list of input DESImage(s) to use to determine the normalization factor
+            - `ccdnorm`: -1-->normalize to median of all files, or to image with CCDNUM=ccdnorm
             - `outnorm`: output file name to write the normalization factor
 
         Applies the correction to each input and writes a separate output file.
         """
- 
+
         logger.info('Initial Read of Flat Field Headers')
 #
-        norm_list=[]
-        scalmean_list=[]
-        normval=None
+        norm_list = []
+        scalmean_list = []
+        normval = None
 #
         for filename in in_filenames:
-            if (os.path.isfile(filename)):    
-                tmp_dict={}
-                tmp_dict['fname']=filename
-                if (tmp_dict['fname'][-2:] == "fz"):
-                    sci_hdu=1 # for .fz
+            if os.path.isfile(filename):
+                tmp_dict = {}
+                tmp_dict['fname'] = filename
+                if tmp_dict['fname'].endswith("fz"):
+                    sci_hdu = 1 # for .fz
                 else:
-                    sci_hdu=0 # for .fits (or .gz)
-                temp_fits=fitsio.FITS(tmp_dict['fname'],'r')
-                temp_head=temp_fits[sci_hdu].read_header()
+                    sci_hdu = 0 # for .fits (or .gz)
+                temp_fits = fitsio.FITS(tmp_dict['fname'], 'r')
+                temp_head = temp_fits[sci_hdu].read_header()
 #
 #               Get the CCD number
 #
                 try:
-                    tmp_dict['ccdnum']=int(temp_head['CCDNUM'])
+                    tmp_dict['ccdnum'] = int(temp_head['CCDNUM'])
                 except:
-                    if (ccdnorm < 1):
-                        tmp_dict['ccdnum']=-1
-                        pass
+                    if ccdnorm < 1:
+                        tmp_dict['ccdnum'] = -1
                     else:
-                        print("Warning: image {:s} did not have a CCDNUM keyword!".format(tmp_dict['fname']))
-                        pass
+                        print(f"Warning: image {tmp_dict['fname']:s} did not have a CCDNUM keyword!")
 #
 #               Get the SCALMEAN value
 #
                 try:
-                    tmp_dict['scalmean']=float(temp_head['SCALMEAN'])
+                    tmp_dict['scalmean'] = float(temp_head['SCALMEAN'])
                 except:
-                    raise ValueError("Image %s did not have a SCALMEAN keyword. Aborting!" % tmp_dict['fname'])
+                    raise ValueError(f"Image {tmp_dict['fname']:s} did not have a SCALMEAN keyword. Aborting!")
 #
 #               Finished first header census
 #               Save file info and scalmean's to a list
@@ -84,28 +78,28 @@ class FindFlatNormalization(PixCorrectStep):
 #
 #       All information is now present. Determine the value that will be used in normalization.
 #
-        if (ccdnorm > 1):
+        if ccdnorm > 1:
             for tmp_rec in norm_list:
-                if (normval is None):
-                    if (tmp_rec['ccdnum']==ccdnorm):
-                        normval=tmp_rec['ccdnum']
+                if normval is None:
+                    if tmp_rec['ccdnum'] == ccdnorm:
+                        normval = tmp_rec['ccdnum']
                 else:
-                    if (tmp_rec['ccdnum']==ccdnorm):
+                    if tmp_rec['ccdnum'] == ccdnorm:
                         print("Warning: More than one image with CCDNUM={:d} identified")
-            if (normval is None):
-                raise ValueError("No image with CCDNUM=%d found among input list. Aborting!" % ccdnorm)
-            logger.info('Normaliztion: %.2f set based on value from CCD %d ' % (normval,ccdnorm))
+            if normval is None:
+                raise ValueError(f"No image with CCDNUM={ccdnorm:d} found among input list. Aborting!")
+            logger.info('Normaliztion: %.2f set based on value from CCD %d ', normval, ccdnorm)
         else:
-            a_scalmean=np.array(scalmean_list)
-            normval=np.median(a_scalmean)
-            logger.info('Normaliztion: %.2f set based on median value of the ensemble ' % normval )
+            a_scalmean = np.array(scalmean_list)
+            normval = np.median(a_scalmean)
+            logger.info('Normaliztion: %.2f set based on median value of the ensemble ', normval)
 #
 #       Write out the normalization factor
 #
-        fout=open(outnorm,'w')
+        fout = open(outnorm, 'w')
         fout.write("{:.2f}\n".format(normval))
         fout.close()
-        ret_code=0
+        ret_code = 0
 
         return ret_code
 
@@ -120,7 +114,7 @@ class FindFlatNormalization(PixCorrectStep):
         """
 
         flat_inlist = config.get(cls.step_name, 'inlist')
-        in_filenames=filelist_to_list(flat_inlist)
+        in_filenames = filelist_to_list(flat_inlist)
         ccdnorm = config.getint(cls.step_name, 'ccdnorm')
         outnorm = config.get(cls.step_name, 'outnorm')
 

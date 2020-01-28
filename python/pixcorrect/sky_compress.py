@@ -1,18 +1,16 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Produce a miniature sky-level image of a single CCD by taking
 medians of boxes in image
 """
 
-import ctypes
-from os import path
+from configparser import NoOptionError
 import numpy as np
-from ConfigParser import SafeConfigParser, NoOptionError
 
-from pixcorrect import proddir
 from pixcorrect.corr_util import logger
-from despyfits.DESImage import DESDataImage, DESImage
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import skyinfo
+
+from despyfits.DESImage import DESDataImage, DESImage
 
 # Which section of the config file to read for this step
 config_section = 'skycompress'
@@ -20,23 +18,23 @@ config_section = 'skycompress'
 class SkyCompress(PixCorrectImStep):
     description = "Produce compressed image of sky background"
     step_name = config_section
-    propagate = ['FILTER','DATE-OBS','EXPNUM','CCDNUM','DETPOS','INSTRUME',
-                 'BAND','NITE']
+    propagate = ['FILTER', 'DATE-OBS', 'EXPNUM', 'CCDNUM', 'DETPOS', 'INSTRUME',
+                 'BAND', 'NITE']
     # Header keywords to copy from source image into compressed image
-    
+
     @classmethod
     def __call__(cls, image, skyfilename, blocksize, bitmask):
         """Produce compressed image of sky background
 
         :Parameters:
-            - `image`: the DESImage to be compressed.  
+            - `image`: the DESImage to be compressed.
             - `skyfilename`: filename for the output compressed sky image
             - `blocksize`: side length of squares in which medians are taken
             - `bitmask`: Bitmask that will be or'ed with mask plane of image (if
                           any) to mark pixels to be ignored in calculating block
                           median.
         """
- 
+
         logger.info('Compressing sky')
 
         nx = image.data.shape[1] / blocksize
@@ -47,17 +45,17 @@ class SkyCompress(PixCorrectImStep):
         # Apply bit mask to the mask plane if any.  Superpixels
         # with no unmasked pixels will be filled with value -1
         if image.mask is None:
-            sky = np.median(image.data.reshape(ny,blocksize,nx,blocksize)\
-                            .swapaxes(1,2)\
-                            .reshape(ny,nx,blocksize*blocksize), axis=2)
+            sky = np.median(image.data.reshape(ny, blocksize, nx, blocksize)\
+                            .swapaxes(1, 2)\
+                            .reshape(ny, nx, blocksize * blocksize), axis=2)
         else:
-            data = np.ma.array(image.data, mask= (image.mask & bitmask),
-                                fill_value=-1.)
-            sky = np.ma.median(data.reshape(ny,blocksize,nx,blocksize)\
-                               .swapaxes(1,2)\
-                               .reshape(ny,nx,blocksize*blocksize), axis=2)
+            data = np.ma.array(image.data, mask=(image.mask & bitmask),
+                               fill_value=-1.)
+            sky = np.ma.median(data.reshape(ny, blocksize, nx, blocksize)\
+                               .swapaxes(1, 2)\
+                               .reshape(ny, nx, blocksize * blocksize), axis=2)
             sky = np.ma.getdata(sky)
-        
+
         # Create HDU for output image, add some header info, save output to file
         outimage = DESDataImage(sky)
         outimage['BLOCKSIZ'] = blocksize
@@ -66,7 +64,7 @@ class SkyCompress(PixCorrectImStep):
         outimage.save(skyfilename)
 
         logger.debug('Finished sky compression')
-        ret_code=0
+        ret_code = 0
         return ret_code
 
 
@@ -81,17 +79,17 @@ class SkyCompress(PixCorrectImStep):
         """
         ### ?? Put defaults in here ??
 
-        if config.has_option(cls.step_name,'blocksize'):
+        if config.has_option(cls.step_name, 'blocksize'):
             blocksize = config.getint(cls.step_name, 'blocksize')
         else:
             blocksize = skyinfo.DEFAULT_BLOCKSIZE
-        if config.has_option(cls.step_name,'bitmask'):
+        if config.has_option(cls.step_name, 'bitmask'):
             bitmask = config.getint(cls.step_name, 'bitmask')
         else:
             bitmask = skyinfo.DEFAULT_SKYMASK
         skyfilename = config.get(cls.step_name, 'skyfilename')
-        logger.info('Sky compression will be done for %s' % image)
-    
+        logger.info('Sky compression will be done for %s', image)
+
         ret_code = cls.__call__(image, skyfilename, blocksize, bitmask)
         return ret_code
 
@@ -105,7 +103,6 @@ class SkyCompress(PixCorrectImStep):
                             help='Size of squares in which median is taken for sky')
         parser.add_argument('--bitmask', type=int, default=skyinfo.DEFAULT_SKYMASK,
                             help='Mask image bits for pixels to ignore in sky estimate')
-        return
 
     @classmethod
     def run(cls, config):

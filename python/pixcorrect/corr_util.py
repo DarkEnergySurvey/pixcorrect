@@ -2,20 +2,10 @@
 
 # imports
 from functools import wraps
-from ConfigParser import SafeConfigParser 
-from argparse import ArgumentParser
 import logging
-from contextlib import closing
-from os import path
 import time
 import platform
 import ctypes
-
-import pyfits
-import numpy as np
-
-
-from pixcorrect import proddir
 
 # constants
 global logger
@@ -31,11 +21,13 @@ class ArrayShapeException(Exception):
 class LibraryException(Exception):
     def __init__(self, value):
         self.value = value
+        super().__init__()
 
 class MismatchError(Exception):
     # Exception class for mismatch between properties of images
     def __init__(self, value):
         self.value = value
+        super().__init__()
     def __str__(self):
         return repr(self.value)
 
@@ -51,10 +43,10 @@ def load_shlib(shlib_name):
     try:
         shlib = ctypes.CDLL(fname)
     except KeyError:
-        raise RuntimeError, ("Unknown platform: " + platform.system())
-        
+        raise RuntimeError("Unknown platform: " + platform.system())
+
     return shlib
-    
+
 
 # A decorator that uses a FITS keyword to determine whether a step
 # has already been performed, and skips it if it has.
@@ -69,7 +61,7 @@ def do_once(arg_idx, fits_keyword):
                 done = False
             if not done:
                 result = f(*args, **kwargs)
-                hdu.header[fits_keyword]=time.asctime(time.localtime())
+                hdu.header[fits_keyword] = time.asctime(time.localtime())
             else:
                 result = 0
                 logger.warning("Skipping " + f.__name__ +  " (" + fits_keyword + " already set)")
@@ -80,7 +72,7 @@ def do_once(arg_idx, fits_keyword):
 # contract conditions
 
 def match_array_shapes(arglist, func_args=None, func_kwargs=None, func_result=None):
-    """A dbc contract condition that forces multiple arguments to be the same shape 
+    """A dbc contract condition that forces multiple arguments to be the same shape
 
     A function suitable for passing as the first argument to the
     precondition, postcondition, or invariantcondition decorators in
@@ -96,7 +88,7 @@ def match_array_shapes(arglist, func_args=None, func_kwargs=None, func_result=No
     ref_shape = func_args[arglist[0]].shape
     for i in arglist[1:]:
         if func_args[arglist[i]].shape != ref_shape:
-            raise ImageShapeException() 
+            raise ArrayShapeException()
 
 def no_lib_error(func_args=None, func_kwargs=None, func_result=None):
     """A dbc contract condition that checks that the returned value is 0
@@ -105,18 +97,18 @@ def no_lib_error(func_args=None, func_kwargs=None, func_result=None):
     precondition, postcondition, or invariantcondition decorators in
     the dbc module.
 
-    Raises a LibraryException if the wrapped function returns a 
+    Raises a LibraryException if the wrapped function returns a
     non-zero value. This is useful when wrapping C libraries that
-    follow the converntion that returning a non-zero value 
+    follow the converntion that returning a non-zero value
     indicates an error.
     """
     if func_result != 0:
-        raise LibraryException(func_result) 
+        raise LibraryException(func_result)
 
 # classes
 # internal functions & classes
 
-def items_must_match(d1,d2,*args):
+def items_must_match(d1, d2, *args):
     """
     Check that items in 2 headers (or any indexable objects) d1 and d2 are equal.
     Each of the args is used as an index.  Logs an error and throws an exception
@@ -128,19 +120,15 @@ def items_must_match(d1,d2,*args):
             v1 = d1[k]
             v2 = d2[k]
         except:
-            msg = 'Items missing that must match for key [{:s}]'.format(k)
+            msg = f"Items missing that must match for key [{k:s}]"
             logging.error(msg)
             raise MismatchError(msg)
-        if type(v1)==str:
+        if isinstance(v1, str):
             v1 = v1.strip()
-        if type(v2)==str:
+        if isinstance(v2, str):
             v2 = v2.strip()
-        if not v1==v2:
-            msg = 'Mismatch for key [{:s}]: '.format(k) + str(v1) + ' vs ' + str(v2)
-            print msg ###
+        if v1 != v2:
+            msg = f"Mismatch for key [{k:s}]: " + str(v1) + ' vs ' + str(v2)
+            print(msg)
             logging.error(msg)
             raise MismatchError(msg)
-    return
-
-            
-            

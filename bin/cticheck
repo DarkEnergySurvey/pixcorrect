@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from pixcorrect.cti import cticheck
+
+if __name__ == '__main__':
+    cticheck.main()

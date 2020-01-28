@@ -14,12 +14,14 @@ class ImageTypeException(Exception):
 
 class ImageWrongHeader(ImageTypeException):
     def __init__(self, kw, read_value, expected_value):
+        super().__init__()
         self.kw = kw
         self.read_value = read_value
         self.expected_value = expected_value
 
 class ImageWrongShape(ImageTypeException):
     def __init__(self, read_shape, expected_shape):
+        super().__init__()
         self.read_shape = read_shape
         self.expected_shape = expected_shape
 
@@ -31,7 +33,7 @@ class ImageWrongShape(ImageTypeException):
 # for specific image types, while this would be awkward if they were all
 # instances of the same class.
 
-class ImageTypeChecker(object):
+class ImageTypeChecker:
     shape = None
     kwdict = {}
     keywords = []
@@ -60,7 +62,7 @@ class Type1ImageChecker(Type0ImageChecker):
               'TREE': 'oak'}
 
 class Type3ImageChecker(Type0ImageChecker):
-    keywords = ['BARCOEFF']    
+    keywords = ['BARCOEFF']
 
 #
 # Make design-by-contract (dbc) decorators from our checking classes

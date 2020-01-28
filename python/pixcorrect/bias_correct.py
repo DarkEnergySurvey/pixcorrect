@@ -1,12 +1,10 @@
-#!/usr/bin/env python
-"""Apply a bias correction to a raw DES image 
+#!/usr/bin/env python3
+"""Apply a bias correction to a raw DES image
 """
 
 from os import path
-import numpy as np
-from pixcorrect import proddir
-from pixcorrect.corr_util import logger, do_once, items_must_match
 from despyfits.DESImage import DESImage
+from pixcorrect.corr_util import logger, do_once, items_must_match
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import decaminfo
 
@@ -19,7 +17,7 @@ class BiasCorrect(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
-    @do_once(1,'DESBIAS')
+    @do_once(1, 'DESBIAS')
     def __call__(cls, image, bias_im):
         """Apply a bias correction to an image
 
@@ -30,7 +28,7 @@ class BiasCorrect(PixCorrectImStep):
         Applies the correction "in place." Also creates BAND and NITE
         keywords if they are not present.
         """
- 
+
         logger.info('Applying Bias')
         # Check that bias and data are from same CCD
         try:
@@ -42,7 +40,7 @@ class BiasCorrect(PixCorrectImStep):
         if (image.weight is not None or image.variance is not None):
             if bias_im.weight is not None:
                 var = image.get_variance()
-                var += 1./bias_im.weight
+                var += 1. / bias_im.weight
             elif bias_im.variance is not None:
                 var = image.get_variance()
                 var += bias_im.variance
@@ -60,10 +58,9 @@ class BiasCorrect(PixCorrectImStep):
             image['NITE']
         except:
             image['NITE'] = decaminfo.get_nite(image['DATE-OBS'])
-            
+
         ret_code = 0
         return ret_code
-
 
     @classmethod
     def step_run(cls, image, config):
@@ -78,7 +75,7 @@ class BiasCorrect(PixCorrectImStep):
         bias_fname = config.get(cls.step_name, 'bias')
         logger.info('reading Bias from %s'% bias_fname)
         bias_im = DESImage.load(bias_fname)
-    
+
         ret_code = cls.__call__(image, bias_im)
         return ret_code
 

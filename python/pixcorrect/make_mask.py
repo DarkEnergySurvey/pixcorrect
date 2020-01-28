@@ -1,15 +1,15 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Apply BPM to mask plane and/or flag saturated pixels
 """
 
+import time
 from os import path
 import numpy as np
-import time
 from pixcorrect.corr_util import logger, items_must_match
-from despyfits.DESImage import DESImage, DESBPMImage, section2slice
-from despyfits.maskbits import *
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect import decaminfo
+from despyfits.DESImage import DESBPMImage, section2slice
+from despyfits.maskbits import *
 
 # Which section of the config file to read for this step
 config_section = 'mask'
@@ -20,7 +20,7 @@ class MakeMask(PixCorrectImStep):
 
     DEFAULT_SATURATE = False
     DEFAULT_CLEAR = False
-    
+
     @classmethod
     def __call__(cls, image, bpm_im, saturate, clear):
         """Create or update the mask plane of an image
@@ -48,22 +48,22 @@ class MakeMask(PixCorrectImStep):
             # Check for header keyword of whether it's been done
             kw = 'DESSAT'
             if kw in image.header.keys() and not clear:
-                logger.warning('Skipping saturation check ('+kw+' already set)')
+                logger.warning('Skipping saturation check (' + kw + ' already set)')
             else:
                 logger.info('Flagging saturated pixels')
                 nsat = 0
                 for amp in decaminfo.amps:
-                    sec = section2slice(image['DATASEC'+amp])
-                    sat = image['SATURAT'+amp]
-                    satpix = image.data[sec]>=sat
+                    sec = section2slice(image['DATASEC' + amp])
+                    sat = image['SATURAT' + amp]
+                    satpix = image.data[sec] >= sat
                     image.mask[sec][satpix] |= BADPIX_SATURATE
                     nsat += np.count_nonzero(satpix)
 
                 image.write_key(kw, time.asctime(time.localtime()),
-                                comment = 'Flag saturated pixels')
-                image.write_key('NSATPIX',nsat,
+                                comment='Flag saturated pixels')
+                image.write_key('NSATPIX', nsat,
                                 comment='Number of saturated pixels')
-                
+
                 logger.debug('Finished flagging saturated pixels')
 
         #Now fill in BPM
@@ -71,7 +71,7 @@ class MakeMask(PixCorrectImStep):
             # Check for header keyword of whether it's been done
             kw = 'DESBPM'
             if kw in image.header.keys() and not clear:
-                logger.warning('Skipping BPM application ('+kw+' already set)')
+                logger.warning('Skipping BPM application (' + kw + ' already set)')
             else:
                 logger.info('Applying BPM')
                 try:
@@ -98,7 +98,7 @@ class MakeMask(PixCorrectImStep):
                     BPMDEF_BIAS_COL | \
                     BPMDEF_FUNKY_COL | \
                     BPMDEF_WACKY_PIX
-                # ERICM Removed BPMDEF_CORR and added FUNKY_COL to the above list 
+                # ERICM Removed BPMDEF_CORR and added FUNKY_COL to the above list
                 mark = (bpm_im.mask & bitmask) != 0
                 image.mask[mark] |= BADPIX_BPM
 
@@ -134,42 +134,42 @@ class MakeMask(PixCorrectImStep):
                 # For each column find the number of pixels flagged as BIAS_HOT and BIAS_COL
                 N_BIAS_HOT = np.sum((bpm_im.mask & BPMDEF_BIAS_HOT) > 0, axis=0)
                 N_BIAS_COL = np.sum((bpm_im.mask & BPMDEF_BIAS_COL) > 0, axis=0)
-                maskwidth=bpm_im.mask.shape[1]
+                maskwidth = bpm_im.mask.shape[1]
                 # First do columns with N_BIAS_COL set for 1 or more pixels
-                biascols=np.arange(maskwidth)[(N_BIAS_COL > 0)]
+                biascols = np.arange(maskwidth)[(N_BIAS_COL > 0)]
                 for icol in biascols:
-                  #Clear FUNKY_COL bit if set for all pixels in this column
-                  #The reason for clearing the bit is that the FUNKY_COL detection is
-                  #sensitive to hot bias pixels and may flag those columns by "mistake"
-                  #First clear BAD BPM bit if set because of funky column
-                  image.mask[:,icol][bpm_im.mask[:,icol]==BPMDEF_FUNKY_COL] &= ~BADPIX_BPM
-                  bpm_im.mask[:,icol] -= (bpm_im.mask[:,icol] & BPMDEF_FUNKY_COL )
-                  #Correctable columns have exactly 1 BIAS_HOT pixel
-                  if N_BIAS_HOT[icol] == 1:
-                    #Correctable pixels have BIAS_COL bit set
-                    bpm_im.mask[:,icol][(bpm_im.mask[:,icol]&BPMDEF_BIAS_COL)>0] |= BPMDEF_CORR
-                    logger.info('Column '+str(icol)+' has 1 hot pixel and is correctable.')
-                  else:
-                    logger.info('Column '+str(icol)+' has '+str(N_BIAS_HOT[icol])+' hot pixels and is NOT correctable.')
+                    #Clear FUNKY_COL bit if set for all pixels in this column
+                    #The reason for clearing the bit is that the FUNKY_COL detection is
+                    #sensitive to hot bias pixels and may flag those columns by "mistake"
+                    #First clear BAD BPM bit if set because of funky column
+                    image.mask[:, icol][bpm_im.mask[:, icol] == BPMDEF_FUNKY_COL] &= ~BADPIX_BPM
+                    bpm_im.mask[:, icol] -= (bpm_im.mask[:, icol] & BPMDEF_FUNKY_COL)
+                    #Correctable columns have exactly 1 BIAS_HOT pixel
+                    if N_BIAS_HOT[icol] == 1:
+                        #Correctable pixels have BIAS_COL bit set
+                        bpm_im.mask[:, icol][(bpm_im.mask[:, icol] & BPMDEF_BIAS_COL) > 0] |= BPMDEF_CORR
+                        logger.info('Column ' + str(icol) + ' has 1 hot pixel and is correctable.')
+                    else:
+                        logger.info('Column ' + str(icol) + ' has ' + str(N_BIAS_HOT[icol]) + ' hot pixels and is NOT correctable.')
 
                 #Now do columns with FUNKY_COL set.  Note that the FUNKY_COL bits have been cleared above
                 #for hot bias columns
                 N_FUNKY_COL = np.sum((bpm_im.mask & BPMDEF_FUNKY_COL) > 0, axis=0)
-                funkycols=np.arange(maskwidth)[(N_FUNKY_COL > 0)]
+                funkycols = np.arange(maskwidth)[(N_FUNKY_COL > 0)]
                 for icol in funkycols:
-                  #Correctable pixels have FUNKY_COL bit set
-                  bpm_im.mask[:,icol][(bpm_im.mask[:,icol]&BPMDEF_FUNKY_COL)>0] |= BPMDEF_CORR
-                  logger.info('Column '+str(icol)+' is funky and correctable.')
+                    #Correctable pixels have FUNKY_COL bit set
+                    bpm_im.mask[:, icol][(bpm_im.mask[:, icol] & BPMDEF_FUNKY_COL) > 0] |= BPMDEF_CORR
+                    logger.info('Column ' + str(icol) + ' is funky and correctable.')
 
- 
+
                 image[kw] = time.asctime(time.localtime())
                 image.write_key(kw, time.asctime(time.localtime()),
-                                comment = 'Construct mask from BPM')
+                                comment='Construct mask from BPM')
                 if bpm_im.sourcefile is None:
                     image.write_key('BPMFIL', 'UNKNOWN', comment='BPM file used to build mask')
                 else:
                     image.write_key('BPMFIL', path.basename(bpm_im.sourcefile), comment='BPM file used to build mask')
-                        
+
                 logger.debug('Finished applying BPM')
 
         return ret_code
@@ -199,7 +199,7 @@ class MakeMask(PixCorrectImStep):
             clear = config.getboolean(cls.step_name, 'clear')
         else:
             clear = DEFAULT_CLEAR
-            
+
         ret_code = cls.__call__(image, bpm_im, saturate, clear)
         return ret_code
 
@@ -207,7 +207,7 @@ class MakeMask(PixCorrectImStep):
     def add_step_args(cls, parser):
         """Add arguments specific application of the BPM
         """
-        parser.add_argument('-b', '--bpm', 
+        parser.add_argument('-b', '--bpm',
                             help='bad pixel mask filename (optional)')
         parser.add_argument('--saturate', action='store_true',
                             help='Flag saturated pixels')
