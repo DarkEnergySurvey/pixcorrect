@@ -1,11 +1,11 @@
-import os 
+import os
 import distutils
 from distutils.core import setup, Extension
 import glob
 
 bin_files = glob.glob('bin/*')
-#inc_files = glob.glob("include/*.h") 
-#doc_files = glob.glob("doc/*.*") + glob.glob("doc/*/*") 
+#inc_files = glob.glob("include/*.h")
+#doc_files = glob.glob("doc/*.*") + glob.glob("doc/*/*")
 
 
 libbiascorrect = Extension(
@@ -46,7 +46,7 @@ libfpnumber = Extension(
 
 # The main call
 setup(name='pixcorrect',
-      version ='0.5.8',
+      version ='3.0.0',
       description = "Pixel-level image correction",
       author = "Eric Neilsen",
       author_email = "neilsen@fnal.gov",
