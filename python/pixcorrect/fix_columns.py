@@ -79,7 +79,7 @@ class FixColumns(PixCorrectImStep):
             if n < cls.MINIMUM_PIXELS:
                 return 0.0, 0.0, -1.0, 0
             avey = np.sum(yp) / n
-            yp -= avey
+            yp = yp - avey
             mean = np.sum(zp) / n
             slope = np.sum(yp * zp) / np.sum(yp * yp)
             if doslope:
@@ -168,7 +168,7 @@ class FixColumns(PixCorrectImStep):
             ignore = np.logical_or(colbpm & cls.BPMBAD, np.isinf(coldata))
             ignore |= np.isnan(coldata)
             corr_rows = np.logical_and(colbpm & cls.CORR, ~ignore)
-            ignore |= image.mask[:, icol] & ~maskbits.BADPIX_BPM
+            ignore = np.logical_or(ignore, image.mask[:, icol] & ~maskbits.BADPIX_BPM)
             use_rows = np.logical_and(colbpm & cls.CORR, ~ignore)
 
             if np.count_nonzero(use_rows) < cls.MINIMUM_PIXELS:
