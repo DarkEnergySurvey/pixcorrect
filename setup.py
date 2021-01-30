@@ -46,9 +46,9 @@ libfpnumber = Extension(
 
 # The main call
 setup(name='pixcorrect',
-      version ='3.0.0',
+      version ='3.0.1',
       description = "Pixel-level image correction",
-      author = "Eric Neilsen",
+      author = "Eric Neilsen, Felipe Menanteau",
       author_email = "neilsen@fnal.gov",
       ext_modules = [libbiascorrect, libbpm, libfixcol, libflatcorrect, libmasksatr, libfpnumber],
       packages = ['pixcorrect'],
@@ -59,4 +59,3 @@ setup(name='pixcorrect',
                    #('include', inc_files),
                    ]
       )
-
