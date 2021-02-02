@@ -1,9 +1,4 @@
-setupRequired(despyfits)
-setupRequired(numpy)
-setupRequired(scipy)
-setupRequired(despymisc)
-setupRequired(matplotlib)
-setupRequired(despyastro)
+setupRequired(despyfits 3.0.0+3)
 
 envAppend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envAppend(PATH, ${PRODUCT_DIR}/bin)
