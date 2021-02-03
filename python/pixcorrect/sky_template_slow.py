@@ -200,7 +200,7 @@ class SkyTemplate(PixCorrectImStep):
                             default=default_out_config, help="output config file")
         parser.add_argument('-l', '--log',
                             default=cls.step_name+".log", help="the name of the logfile")
-        parser.add_argument('-v', '--verbose', action="count", help="be verbose")
+        parser.add_argument('-v', '--verbose', action="count", default=1, help="be verbose")
         parser.add_argument('-i', '--infile', type=str,
                             help='File with PCA information (from sky_pca)')
         parser.add_argument('-o', '--outfilename', type=str,
