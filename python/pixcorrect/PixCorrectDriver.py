@@ -56,7 +56,7 @@ class PixCorrectDriver:
         parser.add_argument("config", default=default_config, nargs="?", help="Configuration file filename")
         parser.add_argument('-s', '--saveconfig',  default=default_out_config, help="output config file")
         parser.add_argument('-l', '--log', default="", help="the name of the logfile")
-        parser.add_argument('-v', '--verbose', action="count", help="be verbose")
+        parser.add_argument('-v', '--verbose', default=1, action="count", help="be verbose")
 
         return parser
 

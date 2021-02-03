@@ -32,7 +32,7 @@ class CoaddPrepare:
         parser.add_argument('-l', '--log',
                             default="",
                             help="the name of the logfile")
-        parser.add_argument('-v', '--verbose', action="count",
+        parser.add_argument('-v', '--verbose', action="count", default=1,
                             help="be verbose")
         parser.add_argument('-i', '--infile',
                             default=None,
