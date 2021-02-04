@@ -151,7 +151,7 @@ class FixColumns(PixCorrectImStep):
         fixable = np.where(np.logical_or(bpm.mask[0, :] & cls.CORR,
                                          bpm.mask[-1, :] & cls.CORR))[0]
         #Just an array that gives the ordinal number of each row in the column (for fitting the slope)
-        colord = np.arange(4096)
+        colord = np.arange(4096, dtype=np.float64)
         #Don't use slope in clipLine
         doslope = False
 
