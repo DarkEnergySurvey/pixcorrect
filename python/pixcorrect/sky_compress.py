@@ -37,8 +37,8 @@ class SkyCompress(PixCorrectImStep):
 
         logger.info('Compressing sky')
 
-        nx = image.data.shape[1] / blocksize
-        ny = image.data.shape[0] / blocksize
+        nx = int(image.data.shape[1] / blocksize)
+        ny = int(image.data.shape[0] / blocksize)
         ## ??? Check that blocksize evenly divides data.shape, else the following
         ## reshape will fail
 
