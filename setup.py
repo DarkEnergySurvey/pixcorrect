@@ -46,7 +46,7 @@ libfpnumber = Extension(
 
 # The main call
 setup(name='pixcorrect',
-      version ='3.0.2',
+      version ='3.0.3',
       description = "Pixel-level image correction",
       author = "Eric Neilsen, Felipe Menanteau",
       author_email = "neilsen@fnal.gov",
