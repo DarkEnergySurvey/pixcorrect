@@ -37,11 +37,15 @@ class SkyCompress(PixCorrectImStep):
 
         logger.info('Compressing sky')
 
+        # Raise exception if image is not a multiple of blocksize (or reshape fails)
+        if ((image.data.shape[1] % blocksize != 0)or
+            (image.data.shape[0] % blocksize != 0)):
+            raise skyinfo.SkyError('blocksize {:d} does not evenly divide image ({:d}x{:d})'.format(
+                blocksize,image.data.shape[0],image.data.shape[1]))
+            exit(1)
+
         nx = int(image.data.shape[1] / blocksize)
         ny = int(image.data.shape[0] / blocksize)
-        ## ??? Check that blocksize evenly divides data.shape, else the following
-        ## reshape will fail
-
         # Apply bit mask to the mask plane if any.  Superpixels
         # with no unmasked pixels will be filled with value -1
         if image.mask is None:

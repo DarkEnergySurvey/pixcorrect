@@ -108,14 +108,9 @@ class MiniDecam:
         self.header = fitsio.FITSHDR(header)
         self.halfS7 = halfS7
 
-#        if decaminfo.shape[0] % self._chip[0] != 0 or \
-#           decaminfo.shape[1] % self._chip[1] != 0:
-#            # Raise exception if image is not multiple of blocksize.
-#            raise SkyError('MiniImage blocksize ' + str(blocksize) +
-#                           ' does not evenly divide images')
-        # RAG added enforcement of integer shape
         self._chip = [int(decaminfo.shape[0] / blocksize),
                       int(decaminfo.shape[1] / blocksize)]  # The shape of a decimated CCD
+        # RAG added enforcement of integer shape
         if decaminfo.shape[0] % blocksize != 0 or \
            decaminfo.shape[1] % blocksize != 0:
             # Raise exception if image is not multiple of blocksize.
@@ -158,9 +153,6 @@ class MiniDecam:
             if detpos in self.invalid:
                 continue
             y, x = self._corner_of(detpos)
-            print(x,y)
-#            x=int(x)
-#            y=int(y)
             if self.halfS7 and detpos == 'S7':
                 self.mask[y:y + self._chip[0], x:x + int(self._chip[1] / 2)] = True
             else:
