@@ -108,10 +108,16 @@ class MiniDecam:
         self.header = fitsio.FITSHDR(header)
         self.halfS7 = halfS7
 
-        self._chip = [decaminfo.shape[0] / blocksize,
-                      decaminfo.shape[1] / blocksize]  # The shape of a decimated CCD
-        if decaminfo.shape[0] % self._chip[0] != 0 or \
-           decaminfo.shape[1] % self._chip[1] != 0:
+#        if decaminfo.shape[0] % self._chip[0] != 0 or \
+#           decaminfo.shape[1] % self._chip[1] != 0:
+#            # Raise exception if image is not multiple of blocksize.
+#            raise SkyError('MiniImage blocksize ' + str(blocksize) +
+#                           ' does not evenly divide images')
+        # RAG added enforcement of integer shape
+        self._chip = [int(decaminfo.shape[0] / blocksize),
+                      int(decaminfo.shape[1] / blocksize)]  # The shape of a decimated CCD
+        if decaminfo.shape[0] % blocksize != 0 or \
+           decaminfo.shape[1] % blocksize != 0:
             # Raise exception if image is not multiple of blocksize.
             raise SkyError('MiniImage blocksize ' + str(blocksize) +
                            ' does not evenly divide images')
@@ -138,10 +144,10 @@ class MiniDecam:
                 continue
             y, x = self._corner_of(detpos)
             if self.halfS7 and detpos == 'S7':
-                xmax = max(xmax, x + self._chip[1] / 2)
+                xmax = int(max(xmax, x + self._chip[1] / 2))
             else:
-                xmax = max(xmax, x + self._chip[1])
-            ymax = max(ymax, y + self._chip[0])
+                xmax = int(max(xmax, x + self._chip[1]))
+            ymax = int(max(ymax, y + self._chip[0]))
 
         # Create the data and mask images
         self.data = np.ones((ymax, xmax), dtype=data_dtype) * self.mask_value
@@ -152,8 +158,11 @@ class MiniDecam:
             if detpos in self.invalid:
                 continue
             y, x = self._corner_of(detpos)
+            print(x,y)
+#            x=int(x)
+#            y=int(y)
             if self.halfS7 and detpos == 'S7':
-                self.mask[y:y + self._chip[0], x:x + self._chip[1] / 2] = True
+                self.mask[y:y + self._chip[0], x:x + int(self._chip[1] / 2)] = True
             else:
                 self.mask[y:y + self._chip[0], x:x + self._chip[1]] = True
 
@@ -164,8 +173,8 @@ class MiniDecam:
         if detpos in self.invalid or detpos not in decaminfo.ccdnums.keys():
             raise SkyError('Invalid detpos in MiniDecam: ' + detpos)
 
-        x = (decaminfo.ccdCorners[detpos][0] - self.xmin) / self.blocksize
-        y = (decaminfo.ccdCorners[detpos][1] - self.ymin) / self.blocksize
+        x = int((decaminfo.ccdCorners[detpos][0] - self.xmin) / self.blocksize)
+        y = int((decaminfo.ccdCorners[detpos][1] - self.ymin) / self.blocksize)
         return y, x
 
     @property
@@ -226,8 +235,8 @@ class MiniDecam:
             raise SkyError('MiniDecam.fill input data has wrong shape ' + str(data.shape))
         y, x = self._corner_of(detpos)
         if self.halfS7 and detpos == 'S7':
-            self.data[y:y + self._chip[0], x:x + self._chip[1] / 2] = \
-              data[:, :data.shape[1] / 2]
+            self.data[y:y + self._chip[0], x:int(x + self._chip[1] / 2)] = \
+              data[:, :int(data.shape[1] / 2)]
         else:
             self.data[y:y + self._chip[0], x:x + self._chip[1]] = data
 
