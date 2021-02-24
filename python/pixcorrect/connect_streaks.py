@@ -280,16 +280,13 @@ class ConnectStreaks(PixCorrectDriver):
         streak_corners = {}
         streak_names = {}
         for streakfile in streak_list:
-            try:
-                with fitsio.FITS(streakfile, 'r') as fits:
-                    ccdnum = fits[0].read_header()['CCDNUM']
-                    streak_names[ccdnum] = streakfile
-                    tab = fits[1].read()
-                    if tab:
-                        streak_corners[ccdnum] = fits[1].read()['CORNERS_WCS']
-            except:
-                logger.error('Failure reading streak file <{:s}>'.format(streakfile))
-                return 1
+            logger.info(f"Reading streak file {streakfile}")
+            with fitsio.FITS(streakfile, 'r') as fits:
+                ccdnum = fits[0].read_header()['CCDNUM']
+                streak_names[ccdnum] = streakfile
+                tab = fits[1].read()
+                if len(tab) > 0:
+                    streak_corners[ccdnum] = fits[1].read()['CORNERS_WCS']
 
         logger.info('Reading WCS from {:d} CCDs'.format(len(image_list)))
 
@@ -825,6 +822,7 @@ class ConnectStreaks(PixCorrectDriver):
                 return 1
             imgfile_out = re.sub(image_name_in, image_name_out, imgfile_in)
 
+            logger.info(f"Loading image: {imgfile_in}")
             sci = DESImage.load(imgfile_in)
             ccd = sci.header['CCDNUM']
 
@@ -866,6 +864,7 @@ class ConnectStreaks(PixCorrectDriver):
                             ' Mask {:d} new streaks'.format(len(add_ids))
 #            sci['HISTORY'] = time.asctime(time.localtime()) + \
 #                             ' Mask {:d} new streaks'.format(len(add_ids))
+            logger.info(f"Saving to: {imgfile_out}")
             sci.save(imgfile_out)
 
         logger.info('Finished connecting streaks')
