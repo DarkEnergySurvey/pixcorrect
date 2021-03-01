@@ -33,12 +33,12 @@ def showPCA(pcfile):
     """
     pca = skyinfo.MiniskyPC.load(pcfile)
     npc = pca.U.shape[1]
-    nrows = (npc - 1) / 4 + 1
+    nrows = int((npc - 1) / 4) + 1
     ncols = min(npc, 4)
     fig, axx = pl.subplots(nrows, ncols, squeeze=True)
     fig.set_size_inches(2 * ncols, 2 * nrows)
     for ipc in range(npc):
-        irow = ipc / 4
+        irow = int(ipc / 4)
         icol = ipc % 4
         fig.sca(axx[irow, icol])
         pl.axis('off')
