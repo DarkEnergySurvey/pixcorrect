@@ -281,7 +281,7 @@ class MiniDecam:
             yend = y + self._chip[0]
             xend = x + self._chip[1]
             if self.halfS7 and detpos == 'S7':
-                xend = x + self._chip[1] / 2
+                xend = x + int(self._chip[1] / 2)
             out.data[y:y + npix, x:xend] = 1.
             out.data[yend - npix:yend, x:xend] = 1.
             out.data[y:yend, x:x + npix] = 1.
