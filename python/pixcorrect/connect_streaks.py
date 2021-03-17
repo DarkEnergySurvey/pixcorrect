@@ -28,6 +28,10 @@ from despyfits.DESImage import DESImage
 from pixcorrect.PixCorrectDriver import PixCorrectDriver, filelist_to_list
 from pixcorrect.corr_util import logger
 
+# Avoid matplotlib fontlib warnings
+import logging
+logging.getLogger('matplotlib').setLevel(logging.ERROR)
+
 # Which section of the config file to read for this step
 config_section = 'connect_streaks'
 
