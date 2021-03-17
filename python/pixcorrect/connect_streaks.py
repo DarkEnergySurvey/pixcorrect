@@ -28,6 +28,10 @@ from despyfits.DESImage import DESImage
 from pixcorrect.PixCorrectDriver import PixCorrectDriver, filelist_to_list
 from pixcorrect.corr_util import logger
 
+# Avoid matplotlib fontlib warnings
+import logging
+logging.getLogger('matplotlib').setLevel(logging.ERROR)
+
 # Which section of the config file to read for this step
 config_section = 'connect_streaks'
 
@@ -526,7 +530,7 @@ class ConnectStreaks(PixCorrectDriver):
                     A = np.vstack((np.ones_like(xx), xx, xx * xx))
                 else:
                     A = np.vstack((np.ones_like(xx), xx))
-                coeffs = np.linalg.lstsq(A.T, yy)[0]
+                coeffs = np.linalg.lstsq(A.T, yy, rcond=None )[0]
                 resid = yy - np.dot(A.T, coeffs)
                 j = np.argmax(np.abs(resid))
                 if i == nclip or np.abs(resid[j]) < RESID_TOLERANCE:
@@ -791,7 +795,7 @@ class ConnectStreaks(PixCorrectDriver):
                     fits = fitsio.FITS(streakfile_out, 'rw')
                     addit = np.recarray(len(add_ids),
                                         dtype=[('LABEL', '>i4'),
-                                               ('CORNERS', '>f8', (4, 2)),
+                                               ('CORNERS', '>f4', (4, 2)),
                                                ('CORNERS_WCS', '>f8', (4, 2))])
                     if fits[1]['LABEL'][:]:
                         first_label = np.max(fits[1]['LABEL'][:]) + 1
