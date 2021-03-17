@@ -526,7 +526,7 @@ class ConnectStreaks(PixCorrectDriver):
                     A = np.vstack((np.ones_like(xx), xx, xx * xx))
                 else:
                     A = np.vstack((np.ones_like(xx), xx))
-                coeffs = np.linalg.lstsq(A.T, yy)[0]
+                coeffs = np.linalg.lstsq(A.T, yy, rcond=None )[0]
                 resid = yy - np.dot(A.T, coeffs)
                 j = np.argmax(np.abs(resid))
                 if i == nclip or np.abs(resid[j]) < RESID_TOLERANCE:
@@ -791,7 +791,7 @@ class ConnectStreaks(PixCorrectDriver):
                     fits = fitsio.FITS(streakfile_out, 'rw')
                     addit = np.recarray(len(add_ids),
                                         dtype=[('LABEL', '>i4'),
-                                               ('CORNERS', '>f8', (4, 2)),
+                                               ('CORNERS', '>f4', (4, 2)),
                                                ('CORNERS_WCS', '>f8', (4, 2))])
                     if fits[1]['LABEL'][:]:
                         first_label = np.max(fits[1]['LABEL'][:]) + 1
