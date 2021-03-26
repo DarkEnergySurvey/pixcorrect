@@ -789,7 +789,7 @@ class ConnectStreaks(PixCorrectDriver):
 
             # Find new streaks for this ccd
             add_ids = np.where(added_streak_ccds == ccd)[0]
-            if add_ids:
+            if len(add_ids) > 0:
                 # Open the table and add new streaks' info
                 try:
                     fits = fitsio.FITS(streakfile_out, 'rw')
@@ -832,7 +832,7 @@ class ConnectStreaks(PixCorrectDriver):
 
             # Find added streaks for this ccd
             add_ids = np.where(added_streak_ccds == ccd)[0]
-            if add_ids:
+            if len(add_ids) > 0:
                 shape = sci.mask.shape
                 yy, xx = np.indices(shape)
                 points = np.vstack((xx.flatten(), yy.flatten())).T
