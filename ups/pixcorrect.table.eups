@@ -1,4 +1,4 @@
-setupRequired(despyfits 3.0.0+3)
+setupRequired(despyfits 3.0.0+7)
 
 envAppend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envAppend(PATH, ${PRODUCT_DIR}/bin)
