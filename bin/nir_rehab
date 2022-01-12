@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from pixcorrect.nir_rehab import nir_rehab
+
+if __name__ == '__main__':
+    nir_rehab.main()
