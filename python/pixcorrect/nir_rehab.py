@@ -125,7 +125,7 @@ class NirRehab(PixCorrectStep):
             seeing=f_ih['SEEING']
             magzpt=f_ih['MAGZPT']
             if (p_ih['BAND'] in nci.nir_vega_to_ab):
-                magzpt=magzpt+nci.nir_vega_to_ab[p_ih['BAND']]
+                magzpt=magzpt-nci.nir_vega_to_ab[p_ih['BAND']]
             else:
                 print("Warning! Unknown BAND ({:s}) for conversion of zeropoint from VEGA to AB system".format(p_ih['BAND']))
 
