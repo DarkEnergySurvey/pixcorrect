@@ -100,3 +100,23 @@ nir_vega_to_ab={
     'NB118':0.853
 }
 
+# This is set based on http://casu.ast.cam.ac.uk/surveys-projects/vista/technical/linearity-sequences
+nircam_satval={
+    1: 33000.,
+    2: 32000.,
+    3: 33000.,
+    4: 32000.,
+    5: 24000.,
+    6: 26000.,
+    7: 35000.,
+    8: 33000.,
+    9: 35000.,
+   10: 35000.,
+   11: 37000.,
+   12: 34000.,
+   13: 33000.,
+   14: 35000.,
+   15: 34000.,
+   16: 34000.
+}
+
