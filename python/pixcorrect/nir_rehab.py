@@ -129,19 +129,53 @@ class NirRehab(PixCorrectStep):
             else:
                 print("Warning! Unknown BAND ({:s}) for conversion of zeropoint from VEGA to AB system".format(p_ih['BAND']))
 
-            c_header.append({'name':'SKYBRITE','value':skylev,'comment':'Sky level estimate from IMCORE'})
-            c_header.append({'name':'SKYSIGMA','value':skyrms,'comment':'Sky noise estimate from IMCORE'})
-            c_header.append({'name':'SKYVARA','value':skyrms*skyrms,'comment':'Sky noise estimate from IMCORE'})
-            c_header.append({'name':'SKYVARB','value':skyrms*skyrms,'comment':'Sky noise estimate from IMCORE'})
-            c_header.append({'name':'FWHM','value':seeing,'comment':'Average FWHM (pixels)'})
-            c_header.append({'name':'MAG_ZERO','value':magzpt,'comment':'Converted MAGZPT(Vega) to AB system'})
-            c_header.append({'name':'NITE','value':convert_utc_str_to_nite(f_ih['DATE-OBS']),'comment':'Observation Nite'})
+            c_header.append({'name':'SKYBRITE', 'value':skylev, 'comment':'Sky level estimate from IMCORE'})
+            c_header.append({'name':'SKYSIGMA', 'value':skyrms, 'comment':'Sky noise estimate from IMCORE'})
+            c_header.append({'name':'SKYVARA',  'value':skyrms*skyrms, 'comment':'Sky noise estimate from IMCORE'})
+            c_header.append({'name':'SKYVARB',  'value':skyrms*skyrms, 'comment':'Sky noise estimate from IMCORE'})
+            c_header.append({'name':'FWHM',     'value':seeing, 'comment':'Average FWHM (pixels)'})
+            c_header.append({'name':'MAG_ZERO', 'value':magzpt, 'comment':'Converted MAGZPT(Vega) to AB system'})
+            c_header.append({'name':'NITE',     'value':convert_utc_str_to_nite(f_ih['DATE-OBS']), 'comment':'Observation Nite'})
+            c_header.append({'name':'SATURATE', 'value':nci.nircam_satval[ccdnum], 'comment': 'Saturation Level (ADU)'})
+            c_header.append({'name':'PIXSCAL1', 'value':0.341, 'comment': 'Fiducial pixel scale (arcsec/pix)'})
+            c_header.append({'name':'PIXSCAL2', 'value':0.341, 'comment': 'Fiducial pixel scale (arcsec/pix)'})
 
-            wgtval=skylev+(skyrms*skyrms)
+            bval=f_ih['BSCALE']
+            print("BSCALE was: ",bval)
+            print("SKYLEVEL was: ",skylev)
+            print("SKYRMS was: ",skyrms)
+#
+#           Searching for a proper WGT prescription
+#
+#           This was what I took to be equivalent to DES (but perhaps it does not properly factor in N-image stack
+#            wgtval=skylev+(skyrms*skyrms)
+#            print("SKYLEV + (SKYRMS*SKYRMS):",wgtval)
+#
+#           This was assuming SKYLEVEL does not properly inform stats
+#            wgtval=(skyrms*skyrms)
+#            print("(SKYRMS*SKYRMS):",wgtval)
+#
+#           This was turning to suspiction that BSCALE was needed
+#           Indeed here  SKYLEV*BSCALE is a good approx for the background level seen in images
+#
+#            wgtval=(skylev*bval)+(skyrms*skyrms*bval*bval)
+#            print("SKYLEV*BSCALE + (SKYRMS*SKYRMS*BSCALE*BSCALE):",wgtval)
+#
+#           This returns to the assumption that SKYLEV is a misconception in its effect to uncertainty
+#           but recognizing that BSCALE is a real effect.
+#
+            wgtval=(skyrms*skyrms*bval*bval)
+            print("(SKYRMS*SKYRMS*BSCALE*BSCALE):",wgtval)
+#
+#           This was out of frustration
+#
+#            wgtval=1.0
+
 #
 #           Read the image data from the science and confidence files.
 #
             sci_data=ifits[hnum].read()
+            print("Median of data {:.3f} ".format(np.median(sci_data)))
             conf_data=cfits[hnum].read()
 #
 #           Use the new (i.e. chip-based header) to feed a WCS 
