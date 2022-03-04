@@ -16,6 +16,7 @@ from pixcorrect.corr_util import logger
 #from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 #from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from pixcorrect.PixCorrectDriver import PixCorrectStep
+from pixcorrect.lightbulb_utils import medclip
 import pixcorrect.nircaminfo as nci
 
 from despyastro.CCD_corners import get_DESDM_corners_extent
@@ -140,8 +141,8 @@ class NirRehab(PixCorrectStep):
             c_header.append({'name':'PIXSCAL1', 'value':0.341, 'comment': 'Fiducial pixel scale (arcsec/pix)'})
             c_header.append({'name':'PIXSCAL2', 'value':0.341, 'comment': 'Fiducial pixel scale (arcsec/pix)'})
 
-            bval=f_ih['BSCALE']
-            print("BSCALE was: ",bval)
+#            bval=f_ih['BSCALE']
+#            print("BSCALE was: ",bval)
             print("SKYLEVEL was: ",skylev)
             print("SKYRMS was: ",skyrms)
 #
@@ -149,27 +150,11 @@ class NirRehab(PixCorrectStep):
 #
 #           This was what I took to be equivalent to DES (but perhaps it does not properly factor in N-image stack
 #            wgtval=skylev+(skyrms*skyrms)
-#            print("SKYLEV + (SKYRMS*SKYRMS):",wgtval)
+            print("SKYLEV + (SKYRMS*SKYRMS): ",skylev+(skyrms*skyrms))
 #
 #           This was assuming SKYLEVEL does not properly inform stats
 #            wgtval=(skyrms*skyrms)
-#            print("(SKYRMS*SKYRMS):",wgtval)
-#
-#           This was turning to suspiction that BSCALE was needed
-#           Indeed here  SKYLEV*BSCALE is a good approx for the background level seen in images
-#
-#            wgtval=(skylev*bval)+(skyrms*skyrms*bval*bval)
-#            print("SKYLEV*BSCALE + (SKYRMS*SKYRMS*BSCALE*BSCALE):",wgtval)
-#
-#           This returns to the assumption that SKYLEV is a misconception in its effect to uncertainty
-#           but recognizing that BSCALE is a real effect.
-#
-            wgtval=(skyrms*skyrms*bval*bval)
-            print("(SKYRMS*SKYRMS*BSCALE*BSCALE):",wgtval)
-#
-#           This was out of frustration
-#
-#            wgtval=1.0
+            print("(SKYRMS*SKYRMS): ",skyrms*skyrms)
 
 #
 #           Read the image data from the science and confidence files.
@@ -177,6 +162,16 @@ class NirRehab(PixCorrectStep):
             sci_data=ifits[hnum].read()
             print("Median of data {:.3f} ".format(np.median(sci_data)))
             conf_data=cfits[hnum].read()
+
+#
+#           Better seemed to be a re-measurement of STD
+#
+            print("Attempting an improved SKYRMS with 3-sigma clip to remove objects")
+            avgval, medval, stdval = medclip(sci_data,verbose=3)
+#            print(avgval,medval,stdval)
+            print("stdval^2: ",stdval*stdval)
+            wgtval=(stdval*stdval)
+#            print(wgtval)
 #
 #           Use the new (i.e. chip-based header) to feed a WCS 
 #           Use image size to feed calculations for center and corners (similar to despyastro.CCD_corners
@@ -208,10 +203,10 @@ class NirRehab(PixCorrectStep):
 #
             im=DESImage(init_data=True,init_mask=True,init_weight=True,shape=sci_data.shape)
 
-            im.data=sci_data
+            im.data=np.float32(sci_data)
             msk_wsm=np.where(conf_data<conf_limit)
             im.mask[msk_wsm] |= BADPIX_BPM
-            im.weight=conf_data/100./wgtval
+            im.weight=np.float32(conf_data/100./wgtval)
 #
 #           Deal with individual header-isms and write out SCI, MSK, WGT
 #           Note this is using fitsio (duplicating some of the DESIMAGE.save 
@@ -239,17 +234,9 @@ class NirRehab(PixCorrectStep):
             im.weight_hdr['DES_EXT']='WEIGHT'
             ofits.write(im.weight,extname='WGT',header=im.weight_hdr)
 
-#            sci_im=DESDataImage(sci_data,fitsio.FITSHDR(c_header))
-#            wgt_im=DESDataImage(conf_data,fitsio.FITSHDR(c_header))
-
-#            im=DESImage.create(sci_im,weight=wgt_im)
-#            im.init_mask()
-
-#            mask_data=np.zeros(sci_data.shape, dtype=np.uint16)
-#            im.mask[msk_wsm] |= BADPIX_BPM
-
-#            im.save("junk{:02d}.fits".format(ccdnum),save_mask=True,save_weight=True)
             ofits.close()
+            print("Wrote {:s}".format(fname))
+            print(" ")
         
 
         ifits.close()

@@ -73,7 +73,7 @@ def medclip(data, clipsig=3.0, maxiter=10, converge_num=0.001, verbose=0):
         logger.debug("{:d} {:.2f} {:.2f} {:.2f} ".format(0, avgval, medval, sig))
     if verbose > 3:
         logger.debug("iter,avgval,medval,sig")
-        logger.debug("{:d} {:.2f} {:.2f} {:.2f} {:d} {:d} {:.1f} ".format(0, avgval, medval, sig, ct, c1, c2))
+        logger.debug("{:d} {:.2f} {:.2f} {:.2f} {:d} {:.2f} {:.1f} ".format(0, avgval, medval, sig, ct, c1, c2))
 
     while c1 >= c2 and iter < maxiter:
         iter += 1

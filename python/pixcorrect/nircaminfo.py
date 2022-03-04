@@ -81,7 +81,6 @@ nir_paw_hdu_keep=[
     'SEEING',
     'NUMSTDS',
     'PERCORR',
-    'BSCALE',
     'MAGZPT',
     'MAGZRR',
     'EXTINCT',
