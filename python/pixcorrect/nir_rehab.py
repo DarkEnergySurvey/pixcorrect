@@ -176,6 +176,7 @@ class NirRehab(PixCorrectStep):
 #           Use the new (i.e. chip-based header) to feed a WCS 
 #           Use image size to feed calculations for center and corners (similar to despyastro.CCD_corners
 #
+            print("Calculating center/corners assuuming native ZPN projection")
             w=WCS(fitsio.FITSHDR(c_header))
 
             fnax2=float(sci_data.shape[0])
@@ -197,6 +198,46 @@ class NirRehab(PixCorrectStep):
             c_header.append({'name':'DECCMIN', 'value':DECCMIN, 'comment':'Minimum extent of image in Declination'})
             c_header.append({'name':'DECCMAX', 'value':DECCMAX, 'comment':'Maximum extent of image in Declination'})
             c_header.append({'name':'CROSSRA0','value':CROSSRA0,'comment':'Does Image Span RA 0h (Y/N)'})
+            c_header.append({'name':'DESEPOCH','value':'NIREPOCH','comment':'Default DES epoch definition for including NIR data'})
+#
+#
+#
+            print("Stripping ZPN projection from WCS and creating a shift to get a rough TAN")
+            recs_to_delete=[] 
+            for i, hrec in enumerate(c_header):
+                if (hrec['name'] == 'CTYPE1'):
+                    c_header[i]['value']='RA---TAN'
+                if (hrec['name'] == 'CTYPE2'):
+                    c_header[i]['value']='DEC--TAN'
+
+                if (hrec['name'] == 'CRVAL1'):
+                    c_header[i]['value']=corn_ra[0]
+                if (hrec['name'] == 'CRVAL2'):
+                    c_header[i]['value']=corn_dec[0]
+                if (hrec['name'] == 'CRPIX1'):
+                    c_header[i]['value']=fnax1/2.0
+                if (hrec['name'] == 'CRPIX2'):
+                    c_header[i]['value']=fnax2/2.0
+
+                if (hrec['name'] in ['PV2_1','PV2_2','PV2_3','PV2_4','PV2_5']):
+                    recs_to_delete.append(i)
+            if (len(recs_to_delete) > 0):
+                for i in sorted(recs_to_delete,reverse=True):
+                    x=c_header.pop(i)
+                    print("Removing: {:}".format(x))
+
+            whack=WCS(fitsio.FITSHDR(c_header))
+            skyhack = whack.pixel_to_world(corn_x,corn_y)
+            whack_corn_ra=skyhack.ra.degree
+            whack_corn_dec=skyhack.dec.degree
+            for i in range(5):
+                cosdec=np.cos(corn_dec[i]*np.pi/180.)
+                dra=3600.*(corn_ra[i]-whack_corn_ra[i])*cosdec
+                ddec=3600.*(corn_dec[i]-whack_corn_dec[i])
+                print(" WCS shift {:d} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} ".format(ccdnum,corn_ra[i],corn_dec[i],whack_corn_ra[i],whack_corn_dec[i],dra,ddec))
+
+#            for i, hrec in enumerate(c_header):
+#                print(i,hrec)
 
 #
 #           Form the SCI, MSK, and WGT HDUs
