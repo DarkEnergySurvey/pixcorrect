@@ -92,7 +92,7 @@ def medclip(data, clipsig=3.0, maxiter=10, converge_num=0.001, verbose=0):
             logger.debug("{:d} {:.2f} {:.2f} {:.2f} {:d} {:d} {:.1f} ".format(iter, avgval, medval, sig, ct, c1, c2))
 #   End of while loop
     if iter >= maxiter:
-        logger.info("Warning: medclip had not yet converged after {:d} iterations".format(iter))
+        logger.warning("Warning: medclip had not yet converged after {:d} iterations".format(iter))
 
     medval = np.median(data[wsm])
     avgval = np.mean(data[wsm])
