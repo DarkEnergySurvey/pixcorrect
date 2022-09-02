@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from pixcorrect.nir_starmask import nir_starmask
+
+if __name__ == '__main__':
+    nir_starmask.main()

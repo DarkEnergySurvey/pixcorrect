@@ -10,6 +10,7 @@ echo "Will Install to: $PRODUCT_DIR"
 source $EUPS_DIR/desdm_eups_setup.sh
 
 setup -v despyfits 3.0.0+6
+setup -v despydb   3.0.0+0
 #setup -v -r ~/build-test/despyfits
 
 export PYTHONPATH=$PRODUCT_DIR/python:$PYTHONPATH
