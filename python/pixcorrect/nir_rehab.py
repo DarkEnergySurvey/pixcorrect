@@ -121,12 +121,18 @@ class NirRehab(PixCorrectStep):
             ccdnum=f_ih['HIERARCH ESO DET CHIP NO']
             c_header.append({'name':'CCDNUM','value':ccdnum,'comment':'Unique Detector Number'})
 
+            exptime=f_ih['EXPTIME']
+            mtime=2.5*np.log10(exptime)
             skylev=f_ih['SKYLEVEL']
             skyrms=f_ih['SKYNOISE']
             seeing=f_ih['SEEING']
             magzpt=f_ih['MAGZPT']
+
+#           zeropoint include a correction from VEGA->AB
+#           zeropoint in headers was found to have a factor for EXPTIME removed (have to add back in for DES-like processing)
+
             if (p_ih['BAND'] in nci.nir_vega_to_ab):
-                magzpt=magzpt+nci.nir_vega_to_ab[p_ih['BAND']]
+                magzpt=magzpt+nci.nir_vega_to_ab[p_ih['BAND']]+mtime
             else:
                 print("Warning! Unknown BAND ({:s}) for conversion of zeropoint from VEGA to AB system".format(p_ih['BAND']))
 

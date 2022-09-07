@@ -119,3 +119,15 @@ nircam_satval={
    16: 34000.
 }
 
+
+# https://manualzz.com/doc/o/a5c60/very-large-telescope-paranal-science-operations-vircam-6.3-filters (table 4)
+# Note: McCracken etal 2012, A&A, 544, A156 (https://www.aanda.org/articles/aa/abs/2012/08/aa19507-12/aa19507-12.html)
+#       gives ultraVista saturation as Y=14 and JHKs=15
+nircam_satcalc={
+    'VZ': 11.3,
+    'VY': 10.8,
+    'J': 11.1,
+    'H': 11.0,
+    'Ks': 10.2}
+
+
