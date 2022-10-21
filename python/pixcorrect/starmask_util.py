@@ -207,7 +207,7 @@ def get_cat_radec_range(radec_box,dbh,dbSchema='des_admin.',table='GAIA_DR2',col
 
     CatDict={}
     if (cat_data.empty):
-        print("# No values returned from query of {tval:s} ".format(tval="GAIA_DR2"))
+        print("# No values returned from query of {tval:s} ".format(tval=table))
         for val in header:
             CatDict[val]=np.array([])
     else:
