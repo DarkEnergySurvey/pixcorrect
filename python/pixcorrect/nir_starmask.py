@@ -15,6 +15,7 @@ import despydb.desdbi
 from despyastro import wcsutil, astrometry
 
 from pixcorrect import starmask_util as smu
+from pixcorrect.lightbulb_utils import medclip
 from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from despyfits.DESImage import DESImage, DESImageCStruct, section2slice, data_dtype
@@ -33,7 +34,7 @@ class NIRStarMask(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
-    def __call__(cls, image, dbSection, UseBand):
+    def __call__(cls, image, dbSection, UseBand, SE_Special):
         """
         Read a FITS catalog of 2MASS PSC sources and mask areas around bright sources based
         on their magnitude.
@@ -133,8 +134,17 @@ class NIRStarMask(PixCorrectImStep):
 #               could also use an exptime+band based calculation (an estimate is provided but not used).
 #
             mag2maskrad = [ 0.00022263, -0.00726182,  0.06189586]
-#            print(np.polyval(mag2maskrad,0.0))
             rmask=np.polyval(mag2maskrad,StarCat[CatMag])
+#
+#           For VISTA VY- and J-band images the ghosting is known to be more severe
+#           Therefore, in cases where the relation below gives a larger radius... replace with larger radius for J- and VY-band images.
+#
+            if ('BAND' in image.header):
+                if (image.header['BAND'] in ['VY','J']):
+                    polf_coeff =np.array([ 8.97832817e-05, -2.60639835e-03, 1.86773994e-02, 6.42125903e-03])
+                    rmask2=np.polyval(polf_coeff,StarCat[CatMag])
+                    wsm=np.where(rmask2>rmask)
+                    rmask[wsm]=rmask2[wsm]
 
             if (image.header['BAND'] in nci.nircam_satcalc):
                 mag_sat_calc=nci.nircam_satcalc[image.header['BAND']]+2.5*np.log10(image.header['EXPTIME'])
@@ -203,6 +213,96 @@ class NIRStarMask(PixCorrectImStep):
                     print("Masking  (ra,dec  (x,y)  mag,rad  Npix): {:8.5f} {:8.5f}  {:7.1f} {:7.1f}  {:6.2f} {:6.2f}  {:d} ".format(
                         StarCat['RA'][wsm][i],StarCat['DEC'][wsm][i],x_cen[i],y_cen[i],StarCat[CatMag][wsm][i],r_pix[i],r[r_wsm].size))
 
+#
+#       Quick check for CCD=6, readout 14 failure for VISTA images
+#       https://www.eso.org/observing/dfo/quality/VIRCAM/pipeline/problems.html
+#
+        if (SE_Special):
+#
+#           Perform a series of preliminary checks before even trying to look at the image and mask values
+#
+            print("Checking whether image is a candidate to check for VISTA ccd6, readout 14 failure")
+            SE_Special_DoIt=True
+            if ('BAND' in image.header):
+                if (not(image.header['BAND'] in ['VY','J','H','Ks'])):
+                    SE_Special_DoIt=False
+                    print("BAND is not a VISTA NIR band.  Skipping...")
+                else:
+                    print("Verified VISTA NIR band: {:s}".format(image.header['BAND']))
+            else:
+                SE_Special_DoIt=False
+                print("BAND keyword not present.  Skipping...")
+#
+            if ('CCDNUM' in image.header):
+                if (image.header['CCDNUM']!=6):
+                    SE_Special_DoIt=False
+                    print("CCDNUM is not #6.  Skipping...")
+                else:
+                    print("Verified CCD={:d}".format(image.header['CCDNUM']))
+            else:
+                SE_Special_DoIt=False
+                print("CCDNUM keyword not present.  Skipping...")
+#
+            if ('NITE' in image.header):
+                nite_val=int(image.header['NITE'])
+                if ((nite_val < 20091015)or(nite_val > 20091120)):
+                    SE_Special_DoIt=False
+                    print("NITE is not between 20091014 and 20091121 (was {:d}).  Skipping...".format(nite_val))
+                else:
+                    print("Verified NITE={:d}".format(nite_val))
+            else:
+                SE_Special_DoIt=False
+                print("NITE keyword not present.  Skipping...")
+#
+            if (SE_Special_DoIt):
+                print("Preliminary checks passed... checking outlier rate in suspect region.")
+
+                avgval, medval, stdval = medclip(image.data,verbose=3)
+
+                m3=[medval-3.*stdval,medval+3.*stdval]
+                m5=[medval-5.*stdval,medval+5.*stdval]
+
+                (ny,nx)=image.data.shape
+                smear=nx-2048
+                if (smear < 0):
+                    smear=0
+
+                ReadOutList=[11,12,14]
+                n3o_sz={}
+                n5o_sz={}
+                for ir in ReadOutList:
+                    ix1=int(((ir-1)*128))
+                    ix2=int(((ir)*128)+smear)
+                    mwsm=np.where(image.mask[:,ix1:ix2]==0)
+                    r_sz=image.data[mwsm].size
+                    c14wsm=np.where(np.logical_and(image.mask[:,ix1:ix2]==0,np.logical_or(image.data[:,ix1:ix2]<m3[0],image.data[:,ix1:ix2]>m3[1])))
+                    n3o_sz[ir]=100.*image.data[:,ix1:ix2][c14wsm].size/r_sz
+                    c14wsm=np.where(np.logical_and(image.mask[:,ix1:ix2]==0,np.logical_or(image.data[:,ix1:ix2]<m5[0],image.data[:,ix1:ix2]>m5[1])))
+                    n5o_sz[ir]=100.*image.data[:,ix1:ix2][c14wsm].size/r_sz
+
+                maskReadout=False
+                if ((n3o_sz[14]>1.5)and(n5o_sz[14]>1.0)):
+                    print("  Readout14 %-3sigma-outliers: {:5.2f}  (criterion is >1.5)".format(n3o_sz[14]))
+                    print("  Readout14 %-5sigma-outliers: {:5.2f}  (criterion is >1.0)".format(n5o_sz[14]))
+                    print("  Checking relative number to those in readout 11 and 12 areas")
+                    r11_3o=n3o_sz[14]/n3o_sz[11]
+                    r11_5o=n5o_sz[14]/n5o_sz[11]
+                    r12_3o=n3o_sz[14]/n3o_sz[12]
+                    r12_5o=n5o_sz[14]/n5o_sz[12]
+                    for ir in [11,12]:
+                        print("  R14/R{:02d} ratio of 3sigma-outliers: {:7.2f}  (criterion is >3.0)".format(ir,n3o_sz[14]/n3o_sz[ir]))
+                        print("  R14/R{:02d} ratio of 5sigma-outliers: {:7.2f}  (criterion is >3.0)".format(ir,n5o_sz[14]/n5o_sz[ir]))
+                    if ((r11_3o>3.0)or(r11_5o>3.0)or(r12_3o>3.0)or(r12_5o>3.0)):
+                        maskReadout=True
+                if (maskReadout):
+                    print("Masking Readout14 with BADPIX_BADAMP {:d}".format(BADPIX_BADAMP))
+                    ir=14
+                    ix1=int(((ir-1)*128))
+                    ix2=int(((ir)*128)+smear)
+                    image.mask[:,ix1:ix2] |= BADPIX_BADAMP
+
+#       End Special Single-Epoch Mask for Readout 14 of CCD=6 of VISTA/NIR frames                    
+
         ret_code = 0
         return ret_code
 
@@ -222,8 +322,9 @@ class NIRStarMask(PixCorrectImStep):
 
         dbSection = config.get(cls.step_name, 'section')
         useband  = config.getboolean(cls.step_name, 'useband')
+        se_special = config.getboolean(cls.step_name, 'se_special')
 
-        ret_code = cls.__call__(image,dbSection,useband)
+        ret_code = cls.__call__(image,dbSection,useband,se_special)
         return ret_code
 
     @classmethod
@@ -234,6 +335,8 @@ class NIRStarMask(PixCorrectImStep):
                             help='section of .desservices file with connection info')
         parser.add_argument('--useband', action='store_true', default=False, 
                             help='use BAND keyword to choose masking catalog and radius relation')
+        parser.add_argument('--se_special', action='store_true', default=False, 
+                            help='perform special single-epoch masking (e.g. ccd6 readout14 failure')
 
 #        parser.add_argument('--Schema', nargs=1, default='des_admin',
 #                            help='DB schema (do not include \'.\').')
