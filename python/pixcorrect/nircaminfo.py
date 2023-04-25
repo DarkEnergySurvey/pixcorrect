@@ -21,6 +21,7 @@ nir_paw_primary_keep=[
     'OFFST_ID',
     'RECIPE',
     'REQTIME',
+    'TEXPTIME',
     'VSA_TIME',
     'VSA_MFID',
     'CASUVERS',
