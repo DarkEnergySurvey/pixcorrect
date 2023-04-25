@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import re
+import numpy as np
+import fitsio
+import despyastro.wcsutil as wcsutil
+from pixcorrect import clip_mask_utils as cmu
+from pixcorrect import starmask_util as smu
+import sys, copy
+from collections import namedtuple
+from scipy.spatial import ConvexHull
+
+
+class clip_mask():
+
+    def __init__(self, config):
+        # I/O and set up
+        self.config = config
+#        self.config=cmu.parse_args(self.config,sys.argv)
+
+        cfits=fitsio.FITS(config['coadd_file'],'r')
+        if ('SCI' in cfits):
+            self.coadd_head = cfits['SCI'].read_header()
+        else:
+            self.coadd_head = cfits[0].read_header()
+        if ('ZNAXIS2' in self.coadd_head):
+            self.coadd_head['NAXIS1']=self.coadd_head['ZNAXIS1']
+            self.coadd_head['NAXIS2']=self.coadd_head['ZNAXIS2']
+        self.coadd_wcs=wcsutil.WCS(self.coadd_head)
+        self.coadd_ohead=cmu.form_output_head(self.coadd_head)
+        print("COADD output header: {:}".format(self.coadd_ohead))
+        cfits.close()
+        self.clip = np.genfromtxt(config['clip_file'])
+        self.sefs = np.genfromtxt(config['se_list'], dtype=str)
+#
+#       Form a dict holding the single-epoch file info needed for output
+#
+        self.sef_dict={}
+        for i in range(self.sefs.size):
+#           Catch the case where DES swarp input lists are used (remove bracketed HDU notation)
+            self.sefs[i]=re.sub("\[[0-9]\]","",self.sefs[i])
+            self.sef_dict[i]={'filename':self.sefs[i]}
+            sfits=fitsio.FITS(self.sefs[i],'r')
+            if ('SCI' in sfits):
+                shead=sfits['SCI'].read_header()
+            else:
+                print("Warning: no SCI HDU... attempting to use primary...")
+                shead=sfits[0].read_header()
+            min_sef_info=True
+            if ('EXPNUM' in shead):
+                self.sef_dict[i]['expnum']=shead['EXPNUM']
+            else:
+                self.sef_dict[i]['expnum']=i
+                min_sef_info=False
+            if ('CCDNUM' in shead):
+                self.sef_dict[i]['ccdnum']=shead['CCDNUM']
+            else:
+                self.sef_dict[i]['ccdnum']=0
+                min_sef_info=False
+            if (not(min_sef_info)):
+                print("Warning: single epoch encountered missing either EXPNUM or CCDNUM?")
+                print(self.sef_dict[i])
+            sfits.close()    
+
+        # remove clipped pixels that coincide with known bright stars
+        if ((self.config['star_list'] is not None)or(self.config['cat_table'] is not None)):
+            self.delete_collisions()
+
+        # gather clipped pixels into groups
+        self.groups = self.build_groups()
+        if (config['debug'] and (config['verbose']>3)):
+            # RAG maskinput debug
+            for g in self.groups:
+                ra,dec=self.coadd_wcs.image2sky(g.x,g.y)
+                print("fk5;circle({:.7f},{:.7f},{:.1f}\") # color=red Frame {:d} Z".format(ra,dec,np.sqrt(g.size),g.frame))
+
+#        # create the coadd-level products
+#        self.coadd_mask = self.build_mask()
+#        save_mask(self.coadd_mask, self.config['coadd_file'],head=self.coadd_ohead)
+#        if self.config['output_regions'] is True:
+#            self.output_reg(self.groups, name_base=self.config['coadd_file'])
+#        if 'plot_name' in self.config.keys():
+#            self.save_plot(plot_name=self.config['plot_name'])
+#
+#        # Single-epoch level products
+#        self.generate_masks()
+        
+        self.output_mask_regions()
+
+
+    def generate_masks(self):
+        # This function has been deprecated 
+
+        # main function to produce the individual frame masks and translate them via wcs
+        # get number of frames
+        N_frames = len(self.sefs)
+
+        # loop over sefs
+        for iframe in range(N_frames):
+            mask = self.build_mask(frame_num=iframe)
+            # RAG hold of on the shift for now
+            mask[mask>self.config['threshold']*self.config['mask_value']] = self.config['mask_value']
+            mask[mask<self.config['mask_value']] = 0
+            save_mask(mask, self.sefs[iframe],head=self.coadd_ohead)
+            if self.config['output_regions'] is True:
+                output_reg(self.groups, name_base=self.sefs[iframe], frame_num=iframe)
+
+
+    def build_mask(self, frame_num=None):
+        # This function has been deprecated 
+
+        # make a blank array to insert mask bits into
+        mask = np.zeros((self.coadd_head['NAXIS1'], self.coadd_head['NAXIS2'])).T
+        print("MASK shape: ",mask.shape)
+        indx_arr = np.meshgrid(np.arange(self.coadd_head['NAXIS1']),np.arange(self.coadd_head['NAXIS2']))
+        # temporary: change all pixels in a group to 16
+        for g in self.groups:
+
+            # test to see whether we want to use this pixel group in the mask.
+            if frame_num is None or frame_num==g.frame:
+                #mask[(indx_arr[0]-g.x)**2+(indx_arr[1]-g.y)**2 < (g.size*np.pi)] = self.config['mask_value']
+                pix_arr = expand_pix(g.pixels, g.expand, mask.shape, wcs=self.coadd_wcs ,frame=g.frame)
+                # the -1 is to convert from SExtractor unity indexing to python 0 indexing.
+                # RAG altered from commented line to cumulative...
+                #mask[pix_arr[:,0]-1,pix_arr[:,1]-1] = self.config['mask_value']
+                mask[pix_arr[:,0]-1,pix_arr[:,1]-1] += 1
+        print("######################### finish frame={:} #######################".format(frame_num)) 
+        return mask
+
+
+    def output_mask_regions(self, frame_num=None):
+#
+#       Run through filtered  groups associated with each frame 
+#
+        sdict={}
+        oreg=open(config['outlier_mask'],'w')
+        N_frames = len(self.sefs)
+        for iframe in range(N_frames):
+            print("#####################################")
+            print("Working on frame number {:d}.  Corresponds to image {:s}.".format(iframe,self.sefs[iframe]))
+            sdict[iframe]={'npoint':0,'npoly':0,'area':0}
+            for g in self.groups:
+                if (iframe==g.frame):
+                    rdict=cmu.group_to_region(g.pixels, g.expand, (self.coadd_head['NAXIS1'],self.coadd_head['NAXIS2']), wcs=self.coadd_wcs ,frame=g.frame,
+                                              debug=self.config['debug'],verbose=self.config['verbose'])
+                    for i in range(1,rdict['nentry']+1):
+                        oreg.write('{:s} expnum={:d} ccdnum={:d}\n'.format(rdict[i],self.sef_dict[g.frame]['expnum'],self.sef_dict[g.frame]['ccdnum']))
+                    sdict[iframe]['npoly']=sdict[iframe]['npoly']+rdict['npoly']
+                    sdict[iframe]['npoint']=sdict[iframe]['npoint']+rdict['npoint']
+                    sdict[iframe]['area']=sdict[iframe]['area']+rdict['area']
+        oreg.close()
+
+        print(" ")
+        print("Summary of resulting outlier regions:")
+        print("-------------------------------------")
+        print(" i   expnum ccdnum  #poly  #point  se-image")
+        if (config['summary'] is not None):
+            sumreg=open(config['summary'],'w')
+            sumreg.write("Summary of resulting outlier regions:\n")
+            sumreg.write("-------------------------------------\n")
+            sumreg.write(" i   expnum ccdnum  #poly  #point  se-image\n")
+
+        for iframe in range(N_frames):
+            SumLine="{:d} {:d} {:d} {:d} {:d} {:s}  ".format(
+                        iframe,
+                        self.sef_dict[iframe]['expnum'],
+                        self.sef_dict[iframe]['ccdnum'],
+                        sdict[iframe]['npoly'],
+                        sdict[iframe]['npoint'],
+                        self.sefs[iframe])
+            print("{:s}".format(SumLine))
+            if (config['summary'] is not None):
+                sumreg.write("{:s}\n".format(SumLine))
+
+        if (config['summary'] is not None):
+            sumreg.close()
+
+        return 0 
+
+
+        
+    def build_groups(self):
+        # build a named tuple to contain group info
+        group = namedtuple('group', ['x', 'y', 'size', 'frame', 'pixels', 'expand'])
+        groups = []
+
+        for frame in range(int(np.max(self.clip[:,0]))):
+            for f in config['filters']:
+                subset = np.where((self.clip[:,0]==frame)&(np.abs(self.clip[:,3])>f[0]))[0]
+                pos = tuple([tuple(self.clip[s,1:3]) for s in subset])
+                out = tuple(cmu.neighboring_groups(pos))
+    
+                # try a min number of pixels, 30
+#               print(len(out))
+                for g in out:
+#                    print("   ",len(g))
+                    if len(g) > f[1]:
+#                        print("       ",len(g),f[0],f[1],f[2])
+                        groups.append(group(x=np.mean([g[i][0] for i in range(len(g))]),
+                                            y=np.mean([g[i][1] for i in range(len(g))]),
+                                            size=len(g),
+                                            frame=frame,
+                                            pixels=g,
+                                            expand=f[2]))  
+        return groups
+
+
+    def delete_collisions(self):
+        # Obtain a list of bright objects that will be masked through either
+        # 1) read in a coadd catalogue and return list of bright object
+        # 2) query a standard table (e.g. GAIA_DR2, 2MASS) to obtain postions and sizes
+
+        if (not(self.config['star_list'] is None)):
+            if (os.path.isfile(self.config['star_list'])):
+                stars = cmu.get_bright_cat_objects(self.config['star_list'],wcs=self.coadd_wcs,config=self.config)
+        if (not(self.config['cat_table'] is None)):
+            stars = cmu.get_bright_DB_objects(self.config['cat_table'],dbSection=self.config['section'],coadd_head=self.coadd_head,
+                                              wcs=self.coadd_wcs,config=self.config,verbose=self.config['verbose'])
+        
+        # remove pixels that lie within the defined circles
+        print("Before deleting collisons: {:d} pixels ".format(self.clip.shape[0]))
+        self.clip = cmu.delete_pix(stars[0], stars[1], stars[2], self.clip)
+        print("After deleting collisons: {:d} pixels ".format(self.clip.shape[0]))
+
+        return
+
+        
+#    def output_reg(groups, name_base=None, frame_num=None):
+#        # need to add the header, make it obvious it is for the coadd - can make for SEFs too.
+#        # re-write to take named tuples.
+#        # try except the name, else use: 'clipped_mask.reg'
+#        # change to RA, Dec so that we don't need to translate coords.
+#        [print("circle({},{},{})".format(x_bar[i],y_bar[i],np.sqrt(group_size[i])*np.pi)) for i in range(len(x_bar))]
+#        # the regions were a bit small when dividing by pi
+
+    
+#    def save_plot(self, plot_name='clipped_mask.png'):
+#        # update for the new group structure.
+#        fig = plt.figure(figsize=(9,6))
+#        ax = fig.add_subplot(111)
+#        ax.set_xlabel(r"\textbf{x}", fontsize=24)
+#        ax.set_ylabel(r'\textbf{y}', fontsize=24)
+#        ax.scatter(np.array(x_bar), np.array(y_bar),s=np.array(group_size))
+#        plt.tight_layout()
+#        plt.savefig(plot_name) 
+#        plt.show()
+
+
+
+def parse_args(config, args):
+#
+#   Note this is currently a hybrid solution that is emerging to provide a more dynamic confiiguration
+#   There are hardcoded elements that occur in main.
+#
+    parser = argparse.ArgumentParser(description='Mask pixels based on SWarp outlier rejection/detection')
+
+    parser.add_argument('clip_file',  type=str, help='Intup list candidate outlier pixels')
+    parser.add_argument('coadd_file', type=str, help='Coadd FITS image')
+    parser.add_argument('se_list',    type=str, help='Single-epoch input image list')
+    parser.add_argument('--outlier_mask', action='store', type=str, required=True,
+        help='Output list of regions to be masked on single-epoch images')
+    parser.add_argument('--summary',  action='store', type=str, default=None,
+        help='Summary of number of regions with respect to single-epoch image')
+    parser.add_argument('--tile',     action='store', type=str, required=False,
+        help='Tile name to work from')
+    parser.add_argument('--star_list',action='store', type=str, default=None,
+        help='FITS catalog to provide bright objects (must have XIMAGE,YIMAGE,MAG_AUTO,FLUX_RADIUS)')
+    parser.add_argument('--cat_table',action='store', type=str, default=None,
+        help='DB table to provide bright objects to avoid outlier rejection')
+    parser.add_argument('--magcut',   action='store', type=float, default=21.5,
+        help='Magnitude cutoff for bright objects outlier rejection (default=21.5)')
+    parser.add_argument('--psf_rad',  action='store', type=float, default=25.,
+        help='Size of PSF models (contructed elsewhere) in units of COADD pixels used when rejecting outliers around known objects (default=20. pixels)')
+
+    parser.add_argument('--debug'      , action='store_true', default=False,
+        help='Debug mode resticts code to work on a handful of objects')
+    parser.add_argument('-v','--verbose', action='store', type=int, default=0,
+        help='Verbosity (defualt:0; currently values up to 2)')
+    parser.add_argument('-s','--section', action='store', type=str, default='db-dessci',
+        help='section of .desservices file with connection info')
+    parser.add_argument('-S','--Schema',  action='store', type=str, default='des_admin',  help='DB schema (do not include \'.\').')
+
+    args = parser.parse_args()
+    verbose=args.verbose
+    if (args.verbose > 0):
+        print("{:}".format(args))
+#
+#   Assign args into config
+#
+    for arg in vars(args):
+        if (args.verbose > 3):
+            print("ARG -> config:  {:} = {:} ".format(arg,getattr(args,arg)))
+        config[arg]=getattr(args,arg)
+
+    return config
+
+
+# main prog.
+if __name__ == '__main__':
+
+    # default config,
+    # filters: a tuple of tuple containing pairs of (significance, min number of pix, expansion factor)
+    # [here, expansion factor refers to....]
+    # min number of pixels mustbe >6 if an exansion factor is used.
+    # mask_ext: the fits extension of the mask, -1 will create new files, one for each input frame
+    # mask_value: the value used in the output maskfiles - to be combined with existing values, bitwise.
+    # star_list: a list of star positions - clipped pixels covering these positions will be deleted. List should contain, RA, Dec, radius for each object.
+    # output_regions: whether to save a regions file of circles representing the size of each group.
+    # threshold: the reprojection causes fractional values in the single-epoch masks. This value determines whether to keep a fraction or not (real: 0 to 1).
+    #config = {'filters': ((5, 400, 1.), (5, 30, 0.5), (15, 8, 0.2), (25, 1, 0.)),
+
+    #   Current hardcoded config elements.
+    config = {'filters': ((5, 400, 1.5), (5, 30, 1.25), (15, 8, 0.75), (25, 1, 0.)),
+          'mask_ext': -1,
+          'mask_value': 1,
+          'star_list': None,
+          'output_regions': False,
+          'threshold': 0.4}
+
+
+    config = parse_args(config, sys.argv)
+
+    if (config['verbose'] > 0):
+        print("Configuration:")
+        for l in config:
+            print("    {:}: {:}".format(l,config[l]))
+
+    clip_mask(config)
+
+    exit(0)
