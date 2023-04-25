@@ -80,7 +80,21 @@ class NirRehab(PixCorrectStep):
                 base_dict[hkeep]={'value':p_ih[hkeep],'comment':p_ih.get_comment(hkeep)}
             else:
                 print("Keyword {:s} missing in HDU[{:d}]".format(hkeep,0))
+#
+#       If possible, need too keep track of REQTIME (requested frametime) because sometimes 
+#       EXPTIME seems to be mispopulated in the CCD image HDUs with TEXPTIME
+#
+        if ('TEXPTIME' in p_ih):
+            texptime=p_ih['TEXPTIME']
+        else:
+            texptime=None
+        if ('REQTIME' in p_ih):
+            reqtime=p_ih['REQTIME']
+        else:
+            reqtime=None
+#
 #        print(base_header)
+        
 
 #
 #       Step through HDUs... and form "CCD" images for each HDU
@@ -99,6 +113,19 @@ class NirRehab(PixCorrectStep):
 
             f_ih=ifits[hnum].read_header()
             f_ih.clean()
+#
+#           Fix occurences where the CCD-level keyword EXPTIME has inherited the value of TEXPTIME
+#
+            exptime=f_ih['EXPTIME']
+            if (reqtime is not None):
+                if (exptime > reqtime):
+                    print("Warning: possible corrupt EXPTIME (total exptime rather than frame time present).")
+                    print("Attempting to update EXTIME to REQTIME (requested frame time).")
+                    print("    Primary HDU: TEXPTIME: {:}".format(texptime))
+                    print("    Primary HDU: REQTIME:  {:}".format(reqtime))
+                    print("    Current HDU: EXPTIME:  {:} --> {:}".format(exptime,reqtime))
+                    exptime=reqtime
+                    f_ih['EXPTIME']=reqtime
 #
 #           Augment keywords pulled from primary header with keywords from current HDU
 #
@@ -121,7 +148,17 @@ class NirRehab(PixCorrectStep):
             ccdnum=f_ih['HIERARCH ESO DET CHIP NO']
             c_header.append({'name':'CCDNUM','value':ccdnum,'comment':'Unique Detector Number'})
 
-            exptime=f_ih['EXPTIME']
+#            exptime=f_ih['EXPTIME']
+##           Fix occurences where the CCD-level keyword EXPTIME has inherited the value of TEXPTIME
+#            if (exptime > reqtime):
+#                print("Warning: possible corrupt EXPTIME (total exptime rather than frame time present).")
+#                print("Attempting to update EXTIME to REQTIME (requested frame time).")
+#                print("    Primary HDU: TEXPTIME: {:.2f}".format(texptime))
+#                print("    Primary HDU: REQTIME:  {:.2f}".format(reqtime))
+#                print("    Current HDU: EXPTIME:  {:.2f} --> {:.2f}".format(exptime,reqtime))
+#                exptime=reqtime
+#                f_ih['EXPTIME']=reqtime
+
             mtime=2.5*np.log10(exptime)
             skylev=f_ih['SKYLEVEL']
             skyrms=f_ih['SKYNOISE']
@@ -142,7 +179,8 @@ class NirRehab(PixCorrectStep):
             c_header.append({'name':'SKYVARB',  'value':skyrms*skyrms, 'comment':'Sky noise estimate from IMCORE'})
             c_header.append({'name':'FWHM',     'value':seeing, 'comment':'Average FWHM (pixels)'})
             c_header.append({'name':'MAG_ZERO', 'value':magzpt, 'comment':'Converted MAGZPT(Vega) to AB system'})
-            c_header.append({'name':'NITE',     'value':convert_utc_str_to_nite(f_ih['DATE-OBS']), 'comment':'Observation Nite'})
+            nite_val=convert_utc_str_to_nite(f_ih['DATE-OBS'])
+            c_header.append({'name':'NITE',     'value':nite_val, 'comment':'Observation Nite'})
             c_header.append({'name':'SATURATE', 'value':nci.nircam_satval[ccdnum], 'comment': 'Saturation Level (ADU)'})
             c_header.append({'name':'PIXSCAL1', 'value':0.341, 'comment': 'Fiducial pixel scale (arcsec/pix)'})
             c_header.append({'name':'PIXSCAL2', 'value':0.341, 'comment': 'Fiducial pixel scale (arcsec/pix)'})
@@ -255,6 +293,13 @@ class NirRehab(PixCorrectStep):
             im.mask[msk_wsm] |= BADPIX_BPM
             im.weight=np.float32(conf_data/100./wgtval)
 #
+#           Check for extra conditions where further masking is needed
+#           Here is where CCD=6 check was started (now removed and placed 
+#               in nir_starmask to take advantage of bright object masking
+#
+
+
+#
 #           Deal with individual header-isms and write out SCI, MSK, WGT
 #           Note this is using fitsio (duplicating some of the DESIMAGE.save 
 #           but customization was needed to deal with foibles of the current
@@ -325,8 +370,8 @@ class NirRehab(PixCorrectStep):
                             help='NIR pawprinti confidence FITS file')
         parser.add_argument('--output_template', nargs=1, default=None,
                             help='Template output filename (%%02d) indicates wildcard for ccdnum/chipnum replacement')
-        parser.add_argument('--conf_limit', nargs=1, default=20.,
-                            help='Limit in confidence image used to mask low confidece data (default=20.0)')
+        parser.add_argument('--conf_limit', nargs=1, default=50.,
+                            help='Limit in confidence image used to mask low confidece data (default=50.0)')
 
 nir_rehab = NirRehab()
 
