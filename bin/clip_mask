@@ -132,10 +132,13 @@ class clip_mask():
 
     def output_mask_regions(self, frame_num=None):
 #
+#       Write set of regions that describe the outliers that can be used to mask the individual images.
+#
 #       Run through filtered  groups associated with each frame 
 #
         sdict={}
         oreg=open(config['outlier_mask'],'w')
+        oreg.write("# mask regions based on clip_mask analysis of {:s}\n".format(self.config['clip_file']))
         N_frames = len(self.sefs)
         for iframe in range(N_frames):
             print("#####################################")
@@ -312,7 +315,8 @@ if __name__ == '__main__':
     #config = {'filters': ((5, 400, 1.), (5, 30, 0.5), (15, 8, 0.2), (25, 1, 0.)),
 
     #   Current hardcoded config elements.
-    config = {'filters': ((5, 400, 1.5), (5, 30, 1.25), (15, 8, 0.75), (25, 1, 0.)),
+#    config = {'filters': ((5, 400, 1.5), (5, 30, 1.25), (15, 8, 0.75), (25, 1, 0.)),
+    config = {'filters': ((5, 400, 1.5), (5, 20, 1.25), (10, 8, 0.75), (20, 1, 0.)),
           'mask_ext': -1,
           'mask_value': 1,
           'star_list': None,
