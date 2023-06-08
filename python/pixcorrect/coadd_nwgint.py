@@ -398,16 +398,11 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
                     reg_dict[n]['ra']=np.reshape(radec,(npts,2))[:,0]
                     reg_dict[n]['dec']=np.reshape(radec,(npts,2))[:,1]
                     reg_dict[n]['line']=line
-#                else:
-#                    print("SKIPPING: {:s}".format(line))
-#            else:
-#                print("SKIPPING: {:s}".format(line))
         rfile.close()          
       
         # Form set of pixels for each region and add to mask. 
         w = wcsutil.WCS(self.sci.header)
         (ny,nx)=self.sci.mask.shape
-#        print(nx,ny)
         print("Identified {:d} regions to be associated with this image".format(reg_dict['nentry']))
         nr_flag_tot=0
         for ireg in range(1,reg_dict['nentry']+1):

@@ -797,7 +797,8 @@ class ConnectStreaks(PixCorrectDriver):
                                         dtype=[('LABEL', '>i4'),
                                                ('CORNERS', '>f4', (4, 2)),
                                                ('CORNERS_WCS', '>f8', (4, 2))])
-                    if fits[1]['LABEL'][:]:
+#                   RAG changed this conditional to get past error where it tried to evaluate an array
+                    if (fits[1]['LABEL'][:].size > 0):
                         first_label = np.max(fits[1]['LABEL'][:]) + 1
                     else:
                         first_label = 1
