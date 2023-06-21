@@ -44,6 +44,11 @@ def get_bright_cat_objects(fname="coadd_objects.cat",wcs=None,config={'magcut':9
     return [x,y,r]
 
 
+def excess_noise_cut(g_mag,slope=0.3,intercept=0.15):
+     """ Cut on astrometric_excess_noise. Returns log10(astrometric_excess_noise) """ 
+     log_noise = slope*(g_mag - 18.2) + intercept
+     return np.clip(log_noise,0.3,None)
+
 
 def get_bright_DB_objects(dbTable,dbSection='db-dessci',dbSchema='des_admin',coadd_head=None,wcs=None,config={'psf_rad':25.0},verbose=0):
 
@@ -98,10 +103,25 @@ def get_bright_DB_objects(dbTable,dbSection='db-dessci',dbSchema='des_admin',coa
 #        StarCat, StarHead=smu.get_cat_radec_range(radec_box,dbh,dbSchema='des_admin.',table='TWOMASS_PSC',cols=['RA','DEC','J'],Timing=False,verbose=0)
 #        CatMag='J'
 ##    else:
-    if (True):
+    if (dbTable == "GAIA_DR2"):
         print("Querying GAIA_DR2")
         StarCat, StarHead=smu.get_cat_radec_range(radec_box,dbh,dbSchema='des_admin.',table='GAIA_DR2',cols=['RA','DEC','PHOT_G_MEAN_MAG'],Timing=False,verbose=0)
         CatMag='PHOT_G_MEAN_MAG'
+    elif (dbTable == "GAIA_EDR3"):
+        print("Querying GAIA_EDR3")
+        StarCat, StarHead=smu.get_cat_radec_range(radec_box,dbh,dbSchema='des_admin.',table='GAIA_EDR3',cols=['RA','DEC','PHOT_G_MEAN_MAG','ASTROMETRIC_EXCESS_NOISE'],Timing=False,verbose=0)
+        CatMag='PHOT_G_MEAN_MAG'
+#
+#       Remove galaxies
+#
+        print(StarHead)
+        gaia_stars = np.where(np.log10(StarCat['ASTROMETRIC_EXCESS_NOISE']) < excess_noise_cut(StarCat['PHOT_G_MEAN_MAG']))
+        print(" Pre-galaxy cut: {:d}".format(StarCat['RA'].size))
+        for col in StarHead:
+            StarCat[col]=StarCat[col][gaia_stars]
+        print("Post-galaxy cut: {:d}".format(StarCat['RA'].size))
+
+
 
     if (wcs is not None):
         x,y=wcs.sky2image(StarCat['RA'],StarCat['DEC'])
