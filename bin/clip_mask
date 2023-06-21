@@ -189,7 +189,8 @@ class clip_mask():
         group = namedtuple('group', ['x', 'y', 'size', 'frame', 'pixels', 'expand'])
         groups = []
 
-        for frame in range(int(np.max(self.clip[:,0]))):
+        for frame in range(int(np.max(self.clip[:,0]))+1):
+            print("RAG Check Build Groups {:d}".format(frame))
             for f in config['filters']:
                 subset = np.where((self.clip[:,0]==frame)&(np.abs(self.clip[:,3])>f[0]))[0]
                 pos = tuple([tuple(self.clip[s,1:3]) for s in subset])
