@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+
+import argparse
+import time
+import os
+import re
+import sys
+from pixcorrect.PixCorrectDriver import filelist_to_list
+import subprocess
+
+#import matplotlib.path
+#import fitsio
+#import numpy as np
+
+EXE = 'coadd_nwgint'
+
+if (__name__ == "__main__"):
+
+    parser = argparse.ArgumentParser(description="Define list-based inputs to run (serially) many executions of coadd_nwgint")
+
+    parser.add_argument('--imglist', action='store', type=str, default=None, required=True,
+                        help='List of image files to be processed')
+    parser.add_argument('--headlist', action='store', type=str, default=None, required=False,
+                        help='List of header files to be processed (optional)')
+    parser.add_argument('--outlist', action='store', type=str, default=None, required=False,
+                        help='List of resulting output image files')
+    parser.add_argument('--dryrun',  action='store_true', default=False, 
+                        help='Print what will be executed but do NOT then perform execution')
+
+    parser.add_argument('--zpcol', action='store', type=int, default=None, required=False,
+                        help='Column in imglist that contain MAG_ZERO (to be placed in output header).')
+
+    parser.add_argument('--image_name_in', type=str, default='immask', required=False,
+                        help='String to replace in input image filenames')
+    parser.add_argument('--image_name_out', type=str, default='nwgint', required=False,
+                        help='Replacement string for output image filenames')
+
+
+    ignore_options = ['imglist', 'headlist', 'outlist','dryrun','zpcol','image_name_in','image_name_out']
+    args, unknownargs = parser.parse_known_args()
+
+    try:
+        ImgList = filelist_to_list(args.imglist)
+    except:
+        print('Failure reading imglist file names from {:s}'.format(args.imglist))
+        exit(1)
+
+#
+#   If a column (in imglist) was specified for ZPs then read it and use to feed header updates
+#   for MAG_ZERO
+#
+    if (args.zpcol is None):
+        ZPList = None
+    else:
+        try: 
+            ZPList = [float(zp) for zp in filelist_to_list(args.imglist,column_used=args.zpcol,check_files_exist=False)]
+        except:
+            print('Failure reading MAG_ZERO from image list {:s}'.format(args.headlist))
+            exit(1)
+
+    if (args.headlist is None):
+        print('No list of header files give... will not update WCS')
+        HeadList=None
+    else:
+        try:
+            HeadList = filelist_to_list(args.headlist)
+        except:
+            print('Failure reading headlist file names from {:s}'.format(args.headlist))
+            exit(1)
+
+    if (args.outlist is None):
+#
+#       Case where outlist is not provided (create one based on replacement)
+#
+        RegReplWorked=True
+        OutList=[]
+        for Img in ImgList:
+            # Make the name needed for output
+            nmatch = len(re.findall(args.image_name_in, Img))
+            if nmatch != 1:
+                print('Could not create output name for image file named <{:}> replacing <{:}> w/ <{:}>'.format(Img,args.image_name_in,args.image_name_out))
+                RegReplWorked=False
+                # do not exit yet... in case there are more than one cases to be brought to the users attention
+            else:
+                OutList.append(re.sub(args.image_name_in, args.image_name_out, Img))
+        if(not(RegReplWorked)):
+            exit(1)
+    else:
+#
+#       args.outlist provided (attempt to use that)
+#
+        try:
+            OutList = filelist_to_list(args.outlist,check_files_exist=False,append_missing_files=True)
+        except:
+            print('Failure reading outlist file names from {:s}'.format(args.outlist))
+            exit(1)
+
+#
+#   Some feedback that things are working.
+#
+    nImgList=len(ImgList)
+    nOutList=len(OutList)
+    print("Image list: {:d} files".format(nImgList))
+    if (ZPList is None):
+        print("No MAG_ZERO updates provided")
+    else:
+        nZPList=len(ZPList)
+        print("MAG_ZERO list: {:d} entries".format(nZPList))
+        if (nImgList != nZPList):
+            print("Number of inputs images and ZPs do not match!  Aborting!")
+            exit(1)
+    print("Output list: {:d} files".format(nOutList))
+    if (nImgList != nOutList):
+        print("Number of inputs and outputs do not match!  Aborting!")
+        exit(1)
+    if (HeadList is None):
+        print("No header list.")
+    else:
+        nHeadList=len(HeadList)
+        print("Header list: {:d} files".format(nHeadList))
+        if (nHeadList != nImgList):
+            print("Number of WCS headers does not match number of input!  Aborting!")
+            exit(1)
+
+#
+#   Prep the remainder of the command line
+#
+    ucmdlist=[]
+    for uarg in unknownargs:
+        if (uarg not in ignore_options):
+            ucmdlist.append(uarg)
+    fixed_cmdargs=' '.join(map(str,ucmdlist))
+    print("Fixed command line options: ",fixed_cmdargs)
+
+#   Use subprocess to serially execute coadd_nwgint multiple times (once for each list entry)
+#   Note this could be made more efficient by using the code base within coadd_nwgint but would
+#       require a substantial re-write as many routines would need to alter how they obtain inputs
+#       (this is safer and means that alterations to coadd_nwgint do not have to be maintained in two places)
+
+    for i, img in enumerate(ImgList):
+        if (HeadList is None):
+            headstr=""
+        else:
+            headstr = f"--headfile {HeadList[i]} "
+        if (ZPList is None):
+            zpstr = ""
+        else:
+            zpstr = f"--mag_zero {ZPList[i]} "
+
+        cmd = f"{EXE} -i {ImgList[i]} {headstr} -o {OutList[i]} {zpstr} {fixed_cmdargs} "
+
+#        if (HeadList is None):
+#            cmd = f"-i {ImgList[i]} -o {OutList[i]} {fixed_cmdargs} "
+#        else:
+#            cmd = f"-i {ImgList[i]} --headfile {HeadList[i]} -o {OutList[i]} {fixed_cmdargs} "
+
+        sys.stdout.flush()
+        print("# Preparing to execute:")
+        print("#\t{:}".format(cmd))
+
+        status=0    
+        if (not(args.dryrun)):
+            sys.stdout.flush()
+            status = subprocess.call(cmd, shell=True)
+        else:
+            print("No execution (dry run)")
+
+        if (status == 0):
+            print("# Completed execution of coadd_nwgint")
+        else:
+            sys.exit(status)
+        print("#################################################")
+
+
+    exit(0)
