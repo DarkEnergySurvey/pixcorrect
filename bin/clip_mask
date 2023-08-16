@@ -281,7 +281,7 @@ def parse_args(config, args):
     parser.add_argument('--debug'      , action='store_true', default=False,
         help='Debug mode resticts code to work on a handful of objects')
     parser.add_argument('-v','--verbose', action='store', type=int, default=0,
-        help='Verbosity (defualt:0; currently values up to 2)')
+        help='Verbosity (default:0; currently values up to 2)')
     parser.add_argument('-s','--section', action='store', type=str, default='db-dessci',
         help='section of .desservices file with connection info')
     parser.add_argument('-S','--Schema',  action='store', type=str, default='des_admin',  help='DB schema (do not include \'.\').')
