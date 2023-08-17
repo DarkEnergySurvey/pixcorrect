@@ -5,6 +5,7 @@ import time
 import os
 import re
 import sys
+import yaml
 from pixcorrect.PixCorrectDriver import filelist_to_list
 import subprocess
 
@@ -27,6 +28,10 @@ if (__name__ == "__main__"):
     parser.add_argument('--dryrun',  action='store_true', default=False, 
                         help='Print what will be executed but do NOT then perform execution')
 
+    # Option to implement complex criteria for mask bits (and weights) to be set
+    parser.add_argument('--var_badpix', action='store', type=str, default=None, required=False,
+                        help='YAML description of alternate criteria to enable mask bits')
+
     parser.add_argument('--zpcol', action='store', type=int, default=None, required=False,
                         help='Column in imglist that contain MAG_ZERO (to be placed in output header).')
 
@@ -36,7 +41,10 @@ if (__name__ == "__main__"):
                         help='Replacement string for output image filenames')
 
 
-    ignore_options = ['imglist', 'headlist', 'outlist','dryrun','zpcol','image_name_in','image_name_out']
+#   Note this is not really being used correctly and in the usage below would only get rid of the i
+#   switch (if the list included the "-") but not the arguments for the switch
+
+    ignore_options = ['imglist', 'headlist', 'outlist','dryrun','zpcol','image_name_in','image_name_out','var_badpix']
     args, unknownargs = parser.parse_known_args()
 
     try:
@@ -46,18 +54,32 @@ if (__name__ == "__main__"):
         exit(1)
 
 #
-#   If a column (in imglist) was specified for ZPs then read it and use to feed header updates
-#   for MAG_ZERO
+#   This is a hacked version of file_to_list (that assigns extra columns to a dictionary)
+#   Necessary because args.imglist is now also providing extra information.
 #
-    if (args.zpcol is None):
-        ZPList = None
-    else:
-        try: 
-            ZPList = [float(zp) for zp in filelist_to_list(args.imglist,column_used=args.zpcol,check_files_exist=False)]
-        except:
-            print('Failure reading MAG_ZERO from image list {:s}'.format(args.headlist))
-            exit(1)
+    ImgList = []
+    ImgDict = {}
+    try:
+        fimg = open(args.imglist, 'r')
+    except:
+        raise IOError("File not found.  Missing input list {:s} ".format(args.imglist))
+    for line in fimg:
+        line = line.strip()
+        columns = line.split()
+        if not os.path.isfile(columns[0]):
+            print("Warning: Input image {:s} not found (attempting to skip)".format(columns[0]))
+        else:
+            ImgList.append(columns[0])
+            ImgDict[columns[0]]={'expnum':int(columns[1]),'ccdnum':int(columns[2]),'band':columns[3]}
+            if (args.zpcol is None):
+                ImgDict[columns[0]]['mag_zero']=30.0
+            else:
+                ImgDict[columns[0]]['mag_zero']=float(columns[args.zpcol])
+    fimg.close()
 
+#
+#   Optional read a list of WCS headers (assumed to be ordered same as other lists)
+#
     if (args.headlist is None):
         print('No list of header files give... will not update WCS')
         HeadList=None
@@ -101,14 +123,6 @@ if (__name__ == "__main__"):
     nImgList=len(ImgList)
     nOutList=len(OutList)
     print("Image list: {:d} files".format(nImgList))
-    if (ZPList is None):
-        print("No MAG_ZERO updates provided")
-    else:
-        nZPList=len(ZPList)
-        print("MAG_ZERO list: {:d} entries".format(nZPList))
-        if (nImgList != nZPList):
-            print("Number of inputs images and ZPs do not match!  Aborting!")
-            exit(1)
     print("Output list: {:d} files".format(nOutList))
     if (nImgList != nOutList):
         print("Number of inputs and outputs do not match!  Aborting!")
@@ -122,37 +136,98 @@ if (__name__ == "__main__"):
             print("Number of WCS headers does not match number of input!  Aborting!")
             exit(1)
 
+
 #
-#   Prep the remainder of the command line
+#   If requested attempt to read YAML file.
 #
-    ucmdlist=[]
+    TB_BadPix=None
+    check_for_TB=False
+    if (args.var_badpix is not None):
+        TB_BadPix=[]
+        yfile=open(args.var_badpix,'r')
+        xdata=yaml.safe_load_all(yfile)
+        var_badpix=list(xdata)
+        for doc in var_badpix:
+            if ('BADPIX_TAPEBUMP' in doc):
+                for entry in doc['BADPIX_TAPEBUMP']:
+                    TB_BadPix.append(entry)
+        yfile.close()
+
+        if (len(TB_BadPix)>0):
+            check_for_TB=True
+            print("Will attempt to set TAPEBUMP when criteria warrant")
+            for i,TBcrit in enumerate(TB_BadPix):
+                print("     {:}".format(TBcrit))
+#
+#               RAG: Note... could add some self-correcting/normalizing stuff here... 
+#                    band: scalar --> list
+#                    parse ranges into lists?  (xx-yy --> list of values from xx to yy)
+#                
+
+#
+#   Use the unknown arguments to form the remainder of the command line for subprocess call of coadd_nwgint
+#   For the case where args.var_badpix exists, an alternate command line will be needed with "TAPEBUMP" added.
+#       - note in the event that var_badpix usage is expanded to embrace further cases then more complex behavior might be needed
+#         (e.g. form --null_mask arguments on the fly but for now a simple alt_fixed_cmdargs will work
+#
+    cmdlist=[]
+    alt_cmdlist=[]
     for uarg in unknownargs:
         if (uarg not in ignore_options):
-            ucmdlist.append(uarg)
-    fixed_cmdargs=' '.join(map(str,ucmdlist))
+            cmdlist.append(uarg)
+            alt_cmdlist.append(uarg)
+    fixed_cmdargs=' '.join(map(str,cmdlist))
     print("Fixed command line options: ",fixed_cmdargs)
+
+    for i, uarg in enumerate(alt_cmdlist):
+        if (uarg == '--null_mask'):
+            mbits=alt_cmdlist[i+1].split(',')
+            if ('TAPEBUMP' not in mbits):
+                alt_cmdlist[i+1]+=",TAPEBUMP"
+    alt_fixed_cmdargs=' '.join(map(str,alt_cmdlist))
+    if (check_for_TB):
+        print("Alternate TAPEBUMP version options: ",alt_fixed_cmdargs)
 
 #   Use subprocess to serially execute coadd_nwgint multiple times (once for each list entry)
 #   Note this could be made more efficient by using the code base within coadd_nwgint but would
 #       require a substantial re-write as many routines would need to alter how they obtain inputs
 #       (this is safer and means that alterations to coadd_nwgint do not have to be maintained in two places)
 
+    print("#################################################")
     for i, img in enumerate(ImgList):
         if (HeadList is None):
             headstr=""
         else:
             headstr = f"--headfile {HeadList[i]} "
-        if (ZPList is None):
-            zpstr = ""
+        if ('mag_zero' in ImgDict[img]):
+            zpstr = f"--mag_zero {ImgDict[img]['mag_zero']} "
         else:
-            zpstr = f"--mag_zero {ZPList[i]} "
+            zpstr = ""
 
-        cmd = f"{EXE} -i {ImgList[i]} {headstr} -o {OutList[i]} {zpstr} {fixed_cmdargs} "
+        TB_UberFlag=False
+        if (check_for_TB):
+            # Check whether any one set of criteria are met
+            for TBcrit in TB_BadPix:
+                # evaluate whether all elements of a set (dict) of criteria are true
+                TB_CritFlag=True
+                for key in TBcrit:
+                    if (key == 'expnum'):
+                        if (ImgDict[img][key] < TBcrit[key][0])or(ImgDict[img][key] > TBcrit[key][1]):
+                            TB_CritFlag=False
+                    else:
+                        if (ImgDict[img][key] not in TBcrit[key]):
+                            TB_CritFlag=False
+                # if criteria in this set (dict) arel met then alter the over-arching flag
+                if (TB_CritFlag):
+                    TB_UberFlag=True
+                    print("# Weighting BADPIX_TAPEBUMP to zero in {:s}.  Image meets criteria in {:}.".format(img,TBcrit))
 
-#        if (HeadList is None):
-#            cmd = f"-i {ImgList[i]} -o {OutList[i]} {fixed_cmdargs} "
-#        else:
-#            cmd = f"-i {ImgList[i]} --headfile {HeadList[i]} -o {OutList[i]} {fixed_cmdargs} "
+        if (TB_UberFlag):
+            print("# ")
+            cmd = f"{EXE} -i {ImgList[i]} {headstr} -o {OutList[i]} {zpstr} {alt_fixed_cmdargs} "
+        else:
+            cmd = f"{EXE} -i {ImgList[i]} {headstr} -o {OutList[i]} {zpstr} {fixed_cmdargs} "
+
 
         sys.stdout.flush()
         print("# Preparing to execute:")
