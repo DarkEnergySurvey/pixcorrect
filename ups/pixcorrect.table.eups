@@ -1,5 +1,6 @@
 setupRequired(despyfits 3.0.0+8)
 setupRequired(despydb   3.0.0+0)
+setupRequired(pyyaml    5.3+0)
 
 envAppend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envAppend(PATH, ${PRODUCT_DIR}/bin)
