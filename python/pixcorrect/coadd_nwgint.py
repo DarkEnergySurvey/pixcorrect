@@ -38,6 +38,7 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
     DEFAULT_HDUPCFG = False
     DEFAULT_TILENAME = False
     DEFAULT_TILEID = False
+    DEFAULT_MAGZERO = False
     DEFAULT_ME_WGT_KEEPMASK = False
     DEFAULT_NULL_MASK_SCI = '0'
 #   region_mask additions
@@ -136,11 +137,15 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
     def update_sci_header(self, input_image):
         tilename = get_safe_boolean('tilename', self.config, self.config_section)
         tileid = get_safe_boolean('tileid', self.config, self.config_section)
+        magzero = get_safe_boolean('mag_zero', self.config, self.config_section)
         if tilename:
             record = {'name': 'TILENAME', 'value': tilename, 'comment': 'DES Tilename'}
             self.sci.header.add_record(record)
         if tileid:
             record = {'name': 'TILEID', 'value': int(tileid), 'comment': 'Tile ID for DES Tilename'}
+            self.sci.header.add_record(record)
+        if magzero:
+            record = {'name': 'MAG_ZERO', 'value': magzero, 'comment': 'MAG_ZERO to be applied in coadd'}
             self.sci.header.add_record(record)
 
 
@@ -450,6 +455,8 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
                             help='Add (optional) TILENAME to SCI header')
         parser.add_argument('--tileid', action='store', type=int, default=cls.DEFAULT_TILEID,
                             help='Add (optional) TILEID to SCI header')
+        parser.add_argument('--mag_zero', action='store', default=cls.DEFAULT_MAGZERO,
+                            help='Add (optional) MAG_ZERO to SCI header')
 
         # Options for the extra streak maskig
         parser.add_argument('--streak_file', action='store', type=str, default='',
