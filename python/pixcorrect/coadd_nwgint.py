@@ -14,6 +14,7 @@ from pixcorrect.row_zipper   import row_zipper
 from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectMultistep
 from pixcorrect.clip_mask_utils import polygon_to_pix
+from pixcorrect.region_utils    import loadRegionFile
 
 from despyastro.CCD_corners import update_DESDM_corners
 from despyastro import wcsutil, astrometry
@@ -330,7 +331,6 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
         self.sci.mask[ymask, xmask] |= parse_badpix_mask('STREAK')
 
 
-
     def regionMask(self, region_file, reg_flag_val="CRAY", skip_expccd_chk=False):
         '''Read a region file and mask pixels based on sets of points and polygons
         The current assumption for polygons is that they are convex (i.e. a convex hull)
@@ -345,65 +345,19 @@ class CoaddZipperInterpNullWeight(PixCorrectMultistep):
         Outputs:
             Makes updates to self.sci.mask in place.
  
-        Notes about region files: 
-            Example formats for regions:
-                fk5;pixel(ra,dec) # expnum=EXPNUM ccdnum=CCDNUM 
-                fk5;polgon(ra1,dec1,ra2,dec2,ra3,dec3,....) # expnum=EXPNUM ccdnum=CCDNUM
-            Key points:
-                "fk5;" is not necessary... coordintes are currrently evaluated assuming they are in the same frame a the image
-                "point" and "polygon" are used to distinguish how to further parse information.
-                 "(" and ")" denote the portion of the string to be parsed for coordinates
-                ra,dec are assumed to be in units of degrees
-                comments with format of expnum=VALUE ccdnum=VALUE are assumed to have no spaces and are required unless --skip_expccd_chk is used
         '''
 
         # kernels for expanding around single-point flags
         xpt_exp=np.array([1,0,-1,1,0,-1,1,0,-1])
         ypt_exp=np.array([1,1,1,0,0,0,-1,-1,-1])
 
-        reg_dict={'nentry':0}
         expnum=self.sci.header['EXPNUM']
         ccdnum=self.sci.header['CCDNUM']
-        print("Reading/parsing region mask file: {:s}".format(region_file))
-        try:
-            rfile=open(region_file,'r')
-        except:
-            print("Failed to read region file {:s}".format(region_file))
-            exit(1)
-        # Parse the region file        
-        for line in rfile:
-            if (line[0] != "#"):
-                lbits=line.split()
-                expccd_ok=False
-                if (skip_expccd_chk):
-                    expccd_ok=True
-                else:
-                    r_exp=None
-                    r_ccd=None
-                    for bit in lbits:
-                        if (re.search("expnum=",bit)):
-                            r_exp=int(bit.split("=")[-1])
-                        if (re.search("ccdnum=",bit)):
-                            r_ccd=int(bit.split("=")[-1])
-                    if((r_exp==expnum)and(r_ccd==ccdnum)):
-                        expccd_ok=True
-                if (expccd_ok):
-                    n=reg_dict['nentry']+1
-                    reg_dict[n]={}
-                    reg_dict['nentry']=n
-#                    print("{:s}".format(line))
-                    c1=re.search("\(",line).end()
-                    c2=re.search("\)",line).start()
-                    if (re.search("point",line)):
-                        reg_dict[n]['type']="point"
-                    if (re.search("polygon",line)):
-                        reg_dict[n]['type']="polygon"
-                    radec=np.fromstring(line[c1:c2],dtype=float,sep=',')
-                    npts=int((radec.size)/2)
-                    reg_dict[n]['ra']=np.reshape(radec,(npts,2))[:,0]
-                    reg_dict[n]['dec']=np.reshape(radec,(npts,2))[:,1]
-                    reg_dict[n]['line']=line
-        rfile.close()          
+        if (skip_expccd_chk):
+            AttChk=None
+        else:
+            AttChk={'expnum':{'val':expnum,'type':'int'},'ccdnum':{'val':ccdnum,'type':'int'}}
+        reg_dict=loadRegionFile(region_file,AttChk=AttChk)
       
         # Form set of pixels for each region and add to mask. 
         w = wcsutil.WCS(self.sci.header)
