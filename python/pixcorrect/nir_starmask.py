@@ -20,6 +20,8 @@ from pixcorrect.corr_util import logger
 from pixcorrect.PixCorrectDriver import PixCorrectImStep
 from despyfits.DESImage import DESImage, DESImageCStruct, section2slice, data_dtype
 import pixcorrect.nircaminfo as nci
+from pixcorrect import region_utils as ru
+from pixcorrect.clip_mask_utils import polygon_to_pix
 
 import despyfits
 from despyfits.maskbits import *
@@ -34,7 +36,7 @@ class NIRStarMask(PixCorrectImStep):
     step_name = config_section
 
     @classmethod
-    def __call__(cls, image, dbSection, UseBand, SE_Special):
+    def __call__(cls, image, dbSection, UseBand, SE_Special, RegionFile, RegionFlagVal):
         """
         Read a FITS catalog of 2MASS PSC sources and mask areas around bright sources based
         on their magnitude.
@@ -214,6 +216,37 @@ class NIRStarMask(PixCorrectImStep):
                         StarCat['RA'][wsm][i],StarCat['DEC'][wsm][i],x_cen[i],y_cen[i],StarCat[CatMag][wsm][i],r_pix[i],r[r_wsm].size))
 
 #
+#       Region_Mask chosen
+#
+        if (RegionFile):
+            reg_dict=ru.loadRegionFile(RegionFile)
+            (ny,nx)=image.mask.shape
+            print("Identified {:d} regions to be associated with this image".format(reg_dict['nentry']))
+            nr_flag_tot=0
+            for ireg in range(1,reg_dict['nentry']+1):
+#                print(reg_dict[ireg]['line'])
+                x, y = wcs.sky2image(reg_dict[ireg]['ra'],reg_dict[ireg]['dec'])
+#                print(x,y)
+                if (reg_dict[ireg]['type'] == "point"):
+#                    print("point")
+                    xmsk=np.rint(x)+xpt_exp
+                    ymsk=np.rint(y)+ypt_exp
+                    xy = np.array([(xmsk[i], ymsk[i]) for i in range(x.size)],dtype=int)
+                elif (reg_dict[ireg]['type'] == "polygon"):
+#                    print("polygon")
+                    xy = polygon_to_pix(x,y)
+#                print(xy)
+
+#               # Check for and remove any portion of the region that would extend beyond the image boundaries
+                wsm=np.logical_and(np.logical_and(xy[:,0]-1>=0,xy[:,0]<nx),np.logical_and(xy[:,1]-1>=0,xy[:,1]<ny))
+                # Flag remainging pixels
+                image.mask[xy[:,1][wsm]-1,xy[:,0][wsm]-1] |= parse_badpix_mask(RegionFlagVal)
+                nr_flag=xy[:,1][wsm].size
+                nr_flag_tot=nr_flag_tot+nr_flag
+                # print("Region flagged {:d} pixels".format(nr_flag))
+            print("Finished flagging based on region file.  Total of {:d} (not necessarily unique) pixels flagged as {:s}.".format(nr_flag_tot,RegionFlagVal))
+
+#
 #       Quick check for CCD=6, readout 14 failure for VISTA images
 #       https://www.eso.org/observing/dfo/quality/VIRCAM/pipeline/problems.html
 #
@@ -323,13 +356,15 @@ class NIRStarMask(PixCorrectImStep):
         dbSection = config.get(cls.step_name, 'section')
         useband  = config.getboolean(cls.step_name, 'useband')
         se_special = config.getboolean(cls.step_name, 'se_special')
+        region_file =  config.get(cls.step_name, 'region_mask')
+        region_flag_val = config.get(cls.step_name, 'reg_flag_val')     
 
-        ret_code = cls.__call__(image,dbSection,useband,se_special)
+        ret_code = cls.__call__(image,dbSection,useband,se_special,region_file,region_flag_val)
         return ret_code
 
     @classmethod
     def add_step_args(cls, parser):
-        """Add arguments specific application of the gain correction
+        """Add arguments specific application of the nir_starmask utility
         """
         parser.add_argument('--section', nargs=1, default='db-dessci',
                             help='section of .desservices file with connection info')
@@ -337,6 +372,10 @@ class NIRStarMask(PixCorrectImStep):
                             help='use BAND keyword to choose masking catalog and radius relation')
         parser.add_argument('--se_special', action='store_true', default=False, 
                             help='perform special single-epoch masking (e.g. ccd6 readout14 failure')
+        parser.add_argument('--region_mask', action='store', type=str, default='',
+                            help='Region file defining masks to be applied to image')
+        parser.add_argument('--reg_flag_val', action='store', type=str, default="TRAIL",
+                            help='DESDM BADPIX flag bit to apply to pixels in region_mask (default=TRAIL)')
 
 #        parser.add_argument('--Schema', nargs=1, default='des_admin',
 #                            help='DB schema (do not include \'.\').')
