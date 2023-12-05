@@ -202,7 +202,7 @@ class NIRStarMask(PixCorrectImStep):
 #
 #               Check that it is even possible for the star mask to intersect the image before doing the work
 #
-                if ((ix2[i]<0)or(ix1[i]>nx)or(iy2[i]<0)or(iy2[i]>ny)):
+                if ((ix2[i]<0)or(ix1[i]>nx)or(iy2[i]<0)or(iy1[i]>ny)):
                     if (verbose>0):
                         print("Skipping (ra,dec  (x,y)  mag,rad):       {:8.5f} {:8.5f}  {:7.1f} {:7.1f}  {:6.2f} {:6.2f} ".format(
                             StarCat['RA'][wsm][i],StarCat['DEC'][wsm][i],x_cen[i],y_cen[i],StarCat[CatMag][wsm][i],r_pix[i]))
