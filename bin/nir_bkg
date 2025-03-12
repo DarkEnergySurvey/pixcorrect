@@ -1,0 +1,808 @@
+#!/usr/bin/env python3
+
+"""Create an object mask"""
+
+import argparse
+import os
+import re
+import time
+import numpy as np
+import fitsio
+import despyastro.wcsutil as wcsutil
+# This might be the preferred way to handle this in the future (since it is the actual maintained codebase
+#import esutil.wcsutil as wcsutil
+#from pixcorrect import starmask_util as smu
+#from scipy import signal
+from scipy import ndimage
+import pandas as pd
+import despydb.desdbi
+
+#################################################################################
+def get_cat_objects(fname="coadd_objects.cat",cat_cols=['RA','DEC','MAG_AUTO','FLUX_RADIUS','ISOAREA_WORLD'],
+                    wcs=None,config={'magcut':98.,'psf_rad':25.0},verbose=0):
+
+    cat_fits = fitsio.FITS(fname, 'r')
+    objhdu=None
+    for hname in ['OBJECTS','LDAC_OBJECTS']:
+        if (hname in cat_fits):
+            print("Found {:s}".format(hname))
+            objhdu=hname
+    if (objhdu is None):
+        objhdu=1
+    chk_cat_cols=cat_fits[objhdu].get_colnames()
+    if (verbose > 2):
+        print(chk_cat_cols)
+    cat_data = cat_fits[objhdu][cat_cols][:]
+    cat_fits.close()
+    if (verbose > 0):
+        print("Read {:s} and retrieved {:d} objects".format(fname,cat_data[cat_cols[0]].size))
+
+#   Neutered code that would have made cuts based on config
+#   Maybe need to make cuts?  Maybe need min and max object size?
+#    bright=np.where(np.logical_and(cat_data['MAG_AUTO']>0.0,cat_data['MAG_AUTO']<config['magcut']))
+#    x=cat_data['X_IMAGE'][bright]
+#    y=cat_data['Y_IMAGE'][bright]
+#    r=np.minimum(4.0*cat_data['FLUX_RADIUS'][bright],config['psf_rad'])
+#    r=4.0*cat_data['FLUX_RADIUS'][bright]
+#    print("After magnitude cut there are {:d} OBJECTS to mask".format(x.size))
+#    if (wcs is None):
+#        for i in range(x.size):
+#            print("image;circle({:.2f},{:.2f},{:.2f}) # color=cyan width=3 BrightObj ".format(x[i],y[i],r[i]))
+#    else:
+#        ra,dec=wcs.image2sky(x,y)
+#        for i in range(ra.size):
+#            print("fk5;circle({:.7f},{:.7f},{:.2f}\") # color=cyan width=3 BrightObj ".format(ra[i],dec[i],r[i]*0.263))
+
+    return cat_data,cat_cols
+
+
+#################################################################################
+def get_DB_objects(radec_box,table,dbh,dbSchema,cols=['RA','DEC','MAG','FLAG'],verbose=0):
+
+    t0=time.time()
+
+    if (radec_box['crossra0']):
+        wclause="""({rcol:s} < {r2:.6f} or {rcol:s} > {r1:.6f})
+                and {dcol:s} between {d1:.6f} and {d2:.6f}""".format(
+            rcol=cols[0],
+            dcol=cols[1],
+            r1=radec_box['ra1'],
+            r2=radec_box['ra2'],
+            d1=radec_box['dec1'],
+            d2=radec_box['dec2'])
+    else:
+        wclause="""{rcol:s} between {r1:.6f} and {r2:.6f}
+                and {dcol:s} between {d1:.6f} and {d2:.6f}""".format(
+            rcol=cols[0],
+            dcol=cols[1],
+            r1=radec_box['ra1'],
+            r2=radec_box['ra2'],
+            d1=radec_box['dec1'],
+            d2=radec_box['dec2'])
+
+    query="""SELECT
+        {rcol:s} as ra,
+        {dcol:s} as dec,
+        {mcol:s} as mag,
+        {fcol:s} as flag
+    FROM {schema:s}{tname:s}
+    WHERE {wval:s}
+        """.format(schema=dbSchema,tname=table,wval=wclause,rcol=cols[0],dcol=cols[1],mcol=cols[2],fcol=cols[3])
+
+#
+    if (verbose > 0):
+        if (verbose == 1):
+            QueryLines=query.split('\n')
+            QueryOneLine='sql = '
+            for line in QueryLines:
+                QueryOneLine=QueryOneLine+" "+line.strip()
+            print(QueryOneLine)
+        if (verbose > 1):
+            print(query)
+
+    curDB = dbh.cursor()
+    curDB.execute(query)
+
+    header=[d[0].upper() for d in curDB.description]
+    cat_data=pd.DataFrame(curDB.fetchall())
+
+    CatDict={}
+    if (cat_data.empty):
+        print("# No values returned from query of {tval:s} ".format(tval=table))
+        for val in header:
+            CatDict[val]=np.array([])
+    else:
+        cat_data.columns=header
+        for val in header:
+            CatDict[val]=np.array(cat_data[val])
+    curDB.close()
+
+    if (verbose>0):
+        print("# Number of objects found in {schema:s}{tbl:s} is {nval:d} ".format(
+            schema=dbSchema,
+            tbl=table,
+            nval=CatDict[header[0]].size))
+        t1=time.time()
+        print(" Query execution time: {:.2f}".format(t1-t0))
+
+    return CatDict,header
+
+
+#################################################################################
+def interp_nan_y(data,Timing=True):
+
+    t00=time.time()
+    ny,nx=data.shape
+#
+#   Step through in the x-direction...
+#     - First interpolate y=0 and y=ny ends
+#     - Then fill in any void 
+#   Then step through in the y-direction
+#     - should only need to interpolate the x=0 and x=ny sides
+#
+    for j in range(nx):
+        if (np.isnan(data[0,j])):
+            fy=0
+            while(np.isnan(data[fy,j])and(fy<ny-1)):
+                fy+=1
+            if (fy<ny-1):
+                data[0:fy,j]=data[fy,j]
+        if (np.isnan(data[ny-1,j])):
+            fy=ny-1
+            while(np.isnan(data[fy,j])and(fy>0)):
+                fy-=1
+            if (fy>0):
+                data[fy:ny,j]=data[fy,j]
+        if (not(np.isnan(data[0,j]))):
+            for k in range(ny):
+                if (np.isnan(data[k,j])):
+                    fy=k
+                    while(np.isnan(data[fy,j])and(fy<ny-1)):
+                        fy+=1
+                    if (fy<=ny-1):
+                        dd=data[fy,j]-data[k-1,j]
+                        dv=data[k-1,j] + dd*(np.arange(fy-k)+1)/(fy-k+1)
+                        data[k:fy,j] = dv
+
+    for k in range(ny):
+        if (np.isnan(data[k,0])):
+            fx=0
+            while(np.isnan(data[k,fx])and(fx<nx-1)):
+                fx+=1
+            if (fx<nx-1):
+                data[k,0:fx]=data[k,fx]
+        if (np.isnan(data[k,nx-1])):
+            fx=nx-1
+            while(np.isnan(data[k,fx])and(fx>0)):
+                fx-=1
+            if (fx>0):
+                data[k,fx:nx]=data[k,fx]
+                    
+    if (Timing):
+        print("Filter image (interpolation) required: {:.2f}".format(time.time()-t00))
+#
+#   Currently this is the only corner case not covered among the above interpolations
+#   (i.e. that I know of... although an image that is 100% masked likely still horks things)
+#
+    wsm=np.where(np.isnan(data))
+    if (data[wsm].size > 0):
+        print("Check for remaining NaNs found {:d} and required: {:.2f}".format(data[wsm].size,time.time()-t00))
+        for j in range(nx):
+            if ((j>0)and(j<nx-1)and(np.isnan(data[0,j]))and(np.isnan(data[ny-1,j]))):
+                fx=j
+                while((np.isnan(data[0,fx]))and(np.isnan(data[ny-1,fx]))and(fx<nx-1)):
+                    fx+=1
+                dd=data[:,fx]-data[:,j-1]
+                data[:,j]=data[:,j-1]+dd*(1./(fx-j+1))
+                print("  Replacement for x={:d} complete after: {:.4f}".format(j,time.time()-t00))
+#                
+    wsm=np.where(np.isnan(data))
+    nNaN=data[wsm].size
+    if (Timing):
+        print("After check (and replacement) of remaining NaNs runtime: {:.2f}".format(time.time()-t00))
+    if (nNaN > 0):
+        print("Warning: NaNs have persisted to end of interpolation segment (np.isnan found {:d} in interp_nan_y)".format(nNan))
+
+    return data
+
+
+#################################################################################
+def interp_nan_x(data,Timing=True):
+
+    t00=time.time()
+    ny,nx=data.shape
+#
+#   Step through in the y-direction...
+#     - First interpolate x=0 and x=nx ends
+#     - Then fill in any void 
+#   Then step through in the x-direction
+#     - should only need to interpolate the y=0 and y=ny sides
+#
+    for j in range(ny):
+        if (np.isnan(data[j,0])):
+            fx=0
+            while(np.isnan(data[j,fx])and(fx<nx-1)):
+                fx+=1
+            if (fx<nx-1):
+                data[j,0:fx]=data[j,fx]
+        if (np.isnan(data[j,nx-1])):
+            fx=nx-1
+            while(np.isnan(data[j,fx])and(fx>0)):
+                fx-=1
+            if (fx>0):
+                data[j,fx:nx]=data[j,fx]
+        if (not(np.isnan(data[j,0]))):
+            for k in range(nx):
+                if (np.isnan(data[j,k])):
+                    fx=k
+                    while(np.isnan(data[j,fx])and(fx<nx-1)):
+                        fx+=1
+                    if (fx<=nx-1):
+                        dd=data[j,fx]-data[j,k-1]
+                        data[j,k:fx] = data[j,k-1] + dd*(np.arange(fx-k)+1)/(fx-k+1)
+
+    for k in range(nx):
+        if (np.isnan(data[0,k])):
+            fy=0
+            while(np.isnan(data[fy,k])and(fy<ny-1)):
+                fy+=1
+            if (fy<ny-1):
+                data[0:fy,k]=data[fy,k]
+        if (np.isnan(data[ny-1,k])):
+            fy=ny-1
+            while(np.isnan(data[fy,k])and(fy>0)):
+                fy-=1
+            if (fy>0):
+                data[fy:ny,k]=data[fy,k]
+
+    if (Timing):
+        print("Filter image (interpolation) required: {:.2f}".format(time.time()-t00))
+
+#
+#   Currently this is the only corner case not covered among the above interpolations
+#   (i.e. that I know of... although an image that is 100% masked likely still horks things)
+#
+    wsm=np.where(np.isnan(data))
+    if (data[wsm].size > 0):
+        print("Check for remaining NaNs found {:d} and required: {:.2f}".format(data[wsm].size,time.time()-t00))
+        for j in range(ny):
+            if ((j>0)and(j<ny-1)and(np.isnan(data[j,0]))and(np.isnan(data[j,nx-1]))):
+                fy=j
+                while((np.isnan(data[fy,0]))and(np.isnan(data[fy,nx-1]))and(fy<ny-1)):
+                    fy+=1
+                dd=data[fy,:]-data[j-1,:]
+                data[j,:]=data[j-1,:]+dd*(1./(fy-j+1)) 
+                print("Replacement for y={:d} complete after: {:.4f}".format(j,time.time()-t00))
+#                
+    wsm=np.where(np.isnan(data))
+    nNaN=data[wsm].size
+    if (Timing):
+        print("After check (and replacement) of remaining NaNs runtime: {:.2f}".format(time.time()-t00))
+    if (nNaN > 0):
+        print("Warning: NaNs have persisted to end of interpolation segment (np.isnan found {:d} in interp_nan_x)".format(nNan))
+
+    return data
+
+
+#################################################################################
+def skyfilter_median(sci,omsk,px,py,ph,pskip=1,Timing=True):
+
+    t00=time.time()
+    ny,nx=sci.shape
+    f1=np.zeros(sci.shape,dtype=np.float32)
+
+    for i in range(ny):
+        i1=np.max([i-py,0])
+        i2=np.min([i+py+1,ny-1])
+        for j in range(nx):
+            j1=np.max([j-px,0])
+            j2=np.min([j+px+1,nx-1])
+
+            if (pskip > 1):
+                if (py>px):
+                    iskip=(i+(j*ny))%pskip
+                else:
+                    iskip=(j+(i*nx))%pskip
+            else:
+                iskip=0
+            if (iskip == 0):             
+                patch = sci[i1:i2,j1:j2]
+                pmask = omsk[i1:i2,j1:j2]
+                wsm = np.where(pmask == 0)
+                if (pmask[wsm].size > ph):
+                    f1[i,j]=np.median(patch[wsm],axis=None)
+                else:
+                    f1[i,j]=np.nan
+            else:
+                f1[i,j]=np.nan
+
+    if (Timing):
+        print("Filter image (median) build took: {:.2f}".format(time.time()-t00))
+
+    if (py>px):
+        f1=interp_nan_y(f1,Timing=True)
+    else:
+        f1=interp_nan_x(f1,Timing=True)
+
+    return f1
+
+
+#################################################################################
+def skyfilter_mean(sci,omsk,px,py,ph,pskip=1,Timing=True):
+
+    t00=time.time()
+    ny,nx=sci.shape
+    f1=np.zeros(sci.shape,dtype=np.float32)
+
+    for i in range(ny):
+        i1=np.max([i-py,0])
+        i2=np.min([i+py+1,ny-1])
+        for j in range(nx):
+            j1=np.max([j-px,0])
+            j2=np.min([j+px+1,nx-1])
+            
+            if (pskip > 1):
+                if (py>px):
+                    iskip=(i+(j*ny))%pskip
+                else:
+                    iskip=(j+(i*nx))%pskip
+            else:
+                iskip=0
+            if (iskip == 0):             
+                patch = sci[i1:i2,j1:j2]
+                pmask = omsk[i1:i2,j1:j2]
+                wsm = np.where(pmask == 0)
+                if (pmask[wsm].size > ph):
+                    f1[i,j]=np.mean(patch[wsm],axis=None)
+                else:
+                    f1[i,j]=np.nan
+            else:
+                f1[i,j]=np.nan
+
+    if (Timing):
+        print("Filter image (mean) build took: {:.2f}".format(time.time()-t00))
+
+    if (py>px):
+        f1=interp_nan_y(f1,Timing=True)
+    else:
+        f1=interp_nan_x(f1,Timing=True)
+    
+    return f1
+
+
+#################################################################################
+if __name__ == '__main__':
+
+    tBegin=time.time()
+
+    parser = argparse.ArgumentParser(description='Mask pixels based on input catalog or query')
+
+    parser.add_argument('-i', '--in_image',  action='store', type=str, required=True, help='Input image')
+    parser.add_argument('--sub',   action='store', type=str, default=None, required=True, 
+                        help='Filename to write for the subtracted image (default=None)')
+    parser.add_argument('--append_nonsci_hdus', action='store_true', default=False, 
+                        help='Use to copy nonsci_hdus to the FITS file with subtracted HDUs')
+    parser.add_argument('--bkg',   action='store', type=str, default=None, required=False, 
+                        help='Filename to write for the background image (default=None)')
+    parser.add_argument('--omask', action='store', type=str, default=None, required=False, 
+                        help='Filename to write for the object mask (default=None)')
+
+    parser.add_argument('-c', '--cat', action='store', type=str, default=None, required=False, help='Object catalog')
+    parser.add_argument('--dbtable',   action='store', type=str, default=None, required=False, help='DB Object table')
+    parser.add_argument('--dbcols',    action='store', type=str, default='RA,DEC,MAG,FLAG', required=False, 
+                        help='DB column assign to (ra,dec,mag,flag)')
+    parser.add_argument('--add2mass',  action='store_true', default=False, 
+                        help='Supplement DB Object table with 2MASS (attempts to match band from --dbcols but will fall back to J)')
+
+    parser.add_argument('--imaxrad', action='store', type=int, default=50, 
+                        help='Max radius to allow when masking objects based on isophotal areas (default=50 pix)')
+    parser.add_argument('--cmaxrad', action='store', type=int, default=50, 
+                        help='Max radius to allow when masking objects based on catalog magnitude (default=50 pix)')
+    parser.add_argument('--irfactor', action='store', type=float, default=1.0, 
+                        help='Factor to multiply radii based on isophotal areas (default=1.0)')
+    parser.add_argument('--crfactor', action='store', type=float, default=1.0, 
+                        help='Factor to multiply radii based on catalog magnitudes (default=1.0)')
+
+    parser.add_argument('--kernel', action='store', type=str, default='3,100,100,3', required=False, 
+                        help='Kernel size (expressed as a series of half-size pairs (default=3,100,100,3)')
+    parser.add_argument('--kstep',  action='store', type=int, default=1, required=False, 
+                        help='Step N pix (longwise) between filter estimates interpolating (longwise) between (default=1 no gaps)')
+    parser.add_argument('--kthresh',  action='store', type=float, default=0.50, required=False, 
+                        help='Fractionn of kernel that must be unmasked (default=0.5)')
+    parser.add_argument('--kfunc', action='store', type=str, default='median', required=False, 
+                        help='Kernel function (function to use when analyzing kernel values default=median|[mean])')
+
+    parser.add_argument('--debug'      , action='store_true', default=False, 
+                        help='Debug mode resticts code to work on a handful of objects')
+    parser.add_argument('-v','--verbose', action='store', type=int, default=0, 
+                        help='Verbosity (default:0; currently values up to 2)')
+    parser.add_argument('-s','--section', action='store', type=str, default='db-dessci',
+                        help='section of .desservices file with connection info')
+    parser.add_argument('-S','--Schema',  action='store', type=str, default='des_admin', 
+                        help='DB schema (do not include \'.\').')
+
+    args = parser.parse_args()
+    verbose=args.verbose
+    if (args.verbose > 0):
+        print("{:}".format(args))
+
+    if (args.Schema is None):
+        dbSchema=""
+    elif (args.Schema == "None"):
+        dbSchema=""
+    else:
+        dbSchema="%s." % (args.Schema)
+
+#
+#   Translate kernel keywords.
+#    
+    try:
+        kvals=np.reshape(np.array([round(float(x)) for x in args.kernel.split(',')]),(-1,2))
+        if (verbose > 0):
+            print("Sampling kernels are boxes with half-widths of: ")
+            for val in kvals:
+                print("   ",val)
+    except Exception as e:
+        print("Failed to parse kernel keyword without error. Exception: ",e)
+        exit(1)
+
+    if (args.kfunc in ['median','mean']):
+        if (args.kfunc == 'median'):
+            UseKernMedian=True
+        else:
+            UseKernMedian=False
+        if (verbose > 0):
+            print("Sampling function is {:s}".format(args.kfunc))
+    else:
+        print("Unknown kernel function (--kfunc {:s}).  Must be either \"median\" or \"mean\" ".format(args.kfunc))
+        print("Aborting")
+        exit(1)
+
+#
+#   If DB table is given then check for DB services and initiate a connection.
+#   Transform --dbcol to a list of columns
+#
+    if (args.dbtable is not None):
+        try:
+            desdmfile = os.environ["des_services"]
+        except KeyError:
+            desdmfile = None
+        dbh = despydb.desdbi.DesDbi(desdmfile, args.section, retry=True)
+
+        dbcols=args.dbcols.split(',')
+
+    imaxrad=args.imaxrad
+    cmaxrad=args.cmaxrad
+
+    t00=time.time()
+    if (args.cat is not None):
+        if (os.path.isfile(args.cat)):
+            cat,cols = get_cat_objects(args.cat,cat_cols=['ALPHAWIN_J2000','DELTAWIN_J2000','MAG_AUTO','FLUX_RADIUS','ISOAREA_WORLD'],wcs=None,config={'magcut':98.,'psf_rad':25.0},verbose=args.verbose)
+    print("Catalog read of {:d} objects took: {:.2f}".format(cat[cols[0]].size,time.time()-t00))
+#
+#   Remove anomalously bright or faint objects
+#
+    wsm=np.where(np.logical_and(cat['MAG_AUTO']>0.,cat['MAG_AUTO']<28.))
+    new_cat={}
+    for col in cols:
+        new_cat[col]=cat[col][wsm]
+    print("Catalog after mag cuts has {:d} objects. Took {:.2f} seconds.".format(new_cat[cols[0]].size,time.time()-t00))
+    cat=new_cat
+
+#
+#   Get the image and get to work
+#
+    t00=time.time()
+    print(args.in_image) 
+    cfits=fitsio.FITS(args.in_image,'r')
+    if ('SCI' in cfits):
+        hduval='SCI'
+    else:
+        hduval=0
+    header=cfits[hduval].read_header()
+    wcs=wcsutil.WCS(header)
+    print("Image header took: {:.2f}".format(time.time()-t00))
+    sci=cfits[hduval].read()
+    if ('MSK' in cfits):
+        msk=cfits['MSK'].read()
+    else:
+        msk=np.zeros(sci.shape,dtype=np.int16)
+    print("Image mask took: {:.2f}".format(time.time()-t00))
+
+#   Initialize object mask.
+    omsk=np.zeros(sci.shape,dtype=np.int16)
+    wsm=np.where(msk != 0)
+    omsk[wsm]|=1
+    print("spawn object mask took: {:.2f}".format(time.time()-t00))
+    ny,nx=sci.shape
+    print("Image dimensions: {:d} x {:d} ".format(nx,ny))
+
+#   Obtain a pixel scale
+    try:
+        wcs_jac=wcs.get_jacobian(nx/2.0,ny/2.0)
+        pix_scale=0.5*(np.sqrt(wcs_jac[0]*wcs_jac[0]+wcs_jac[1]*wcs_jac[1])+np.sqrt(wcs_jac[2]*wcs_jac[2]+wcs_jac[3]*wcs_jac[3]))
+        print("Pixel scale (from Jacobian): {:.3f} ".format(pix_scale))
+    except Exception as e:
+        print("Warning: Jacobian method failed with exception: {:}".format(e))
+        pix_scale=0.263
+        print("Default to pixel scale: {:.3f}".format(pix_scale))
+
+#
+#   Use boundary of the image to trim unneccessary objects from the catalog.
+#   RAG clean this assuing DESIMAGE?
+#
+    ibndx=(-imaxrad,-imaxrad,nx+imaxrad,nx+imaxrad)
+    ibndy=(-imaxrad,ny+imaxrad,ny+imaxrad,-imaxrad)
+    ra_bnd,dec_bnd=wcs.image2sky(ibndx,ibndy)
+    print(ra_bnd,dec_bnd)
+    ra_bnd_min=ra_bnd.min()
+    ra_bnd_max=ra_bnd.max()
+    dec_bnd_min=dec_bnd.min()
+    dec_bnd_max=dec_bnd.max()
+    if (ra_bnd_max-ra_bnd_min > 180.0):
+        wsm=np.where(np.logical_and(np.logical_or(cat['ALPHAWIN_J2000']<ra_bnd_min,cat['ALPHAWIN_J2000']>ra_bnd_max),np.logical_and(cat['DELTAWIN_J2000']>dec_bnd_min,cat['DELTAWIN_J2000']<dec_bnd_max)))
+    else:    
+        wsm=np.where(np.logical_and(np.logical_and(cat['ALPHAWIN_J2000']>ra_bnd_min,cat['ALPHAWIN_J2000']<ra_bnd_max),np.logical_and(cat['DELTAWIN_J2000']>dec_bnd_min,cat['DELTAWIN_J2000']<dec_bnd_max)))
+    new_cat={}
+    for col in cols:
+        new_cat[col]=cat[col][wsm]
+    print("Catalog after trimming for image coverage has {:d} objects. Took: {:.2f}".format(new_cat[cols[0]].size,time.time()-t00))
+    cat=new_cat
+
+#
+#
+    if (args.dbtable is not None):
+        radec_box={}
+#
+#       Boundary might be different if cmaxrad differs from imaxrad ?
+#
+        cbndx=(-cmaxrad,-cmaxrad,nx+cmaxrad,nx+cmaxrad)
+        cbndy=(-cmaxrad,ny+cmaxrad,ny+cmaxrad,-cmaxrad)
+        ra_cbnd,dec_cbnd=wcs.image2sky(cbndx,cbndy)
+        print(ra_cbnd,dec_cbnd)
+        ra_cbnd_min=ra_cbnd.min()
+        ra_cbnd_max=ra_cbnd.max()
+        dec_cbnd_min=dec_cbnd.min()
+        dec_cbnd_max=dec_cbnd.max()
+
+        radec_box['crossra0']=False
+        try:
+            if (header['CROSSRA0']=="Y"):
+                radec_box['crossra0']=True
+        except Exception as e:
+            print("Warning: Attempt to check header for CROSSRA0 failed with exception: {:}".format(e))
+            print("Default to CROSSRA0=False")
+        radec_box['ra1']=ra_cbnd_min
+        radec_box['ra2']=ra_cbnd_max
+        radec_box['dec1']=dec_cbnd_min
+        radec_box['dec2']=dec_cbnd_max
+
+        dbcat,dbcol=get_DB_objects(radec_box,args.dbtable,dbh,dbSchema,cols=dbcols,verbose=verbose)
+
+        wsm=np.where(dbcat['FLAG']==0)
+        new_cat={}
+        for col in dbcol:
+            new_cat[col]=dbcat[col][wsm]
+        print("Catalog after trimming for image coverage has {:d} objects. Took: {:.2f}".format(new_cat[dbcol[0]].size,time.time()-t00))
+        dbcat=new_cat
+
+#
+#       Obtain a supplementary 2MASS catalog
+#
+        if (args.add2mass):
+#
+#           First attempt to match query to band out of the prior query
+            mag_2mass=dbcols[2][0]
+            if (mag_2mass not in ['J','H','K']):
+                mag_2mass="J"
+            if (verbose > 0):
+                print("Attempting to supplement with 2MASS {:s}-band data.".format(mag_2mass))
+
+            dbcols_2mass=['RA','DEC',mag_2mass,'RD_FLG']
+            twomasscat,twomasscol=get_DB_objects(radec_box,'TWOMASS_PSC',dbh,dbSchema,cols=dbcols_2mass,verbose=verbose)
+
+            twomassFlagDict={'J':0,'H':1,'K':2}
+            flagList=twomasscat['FLAG'].tolist()
+            twomasscat['MAG_FLAG']=np.array([ 0 if (x[twomassFlagDict[mag_2mass]] in ['1','2','3']) else 1 for x in twomasscat['FLAG'].tolist() ])
+
+            wsm=np.where(twomasscat['MAG_FLAG']==0)
+            if (verbose > 0):
+                print("Attempting to concatentate 2MASS results for {:d} unflagged entries (out of {:d} total entries).".format(twomasscat['RA'][wsm].size,twomasscat['RA'].size))
+            dbcat['RA']=np.concatenate((dbcat['RA'],twomasscat['RA'][wsm]))
+            dbcat['DEC']=np.concatenate((dbcat['DEC'],twomasscat['DEC'][wsm]))
+            dbcat['MAG']=np.concatenate((dbcat['MAG'],twomasscat['MAG'][wsm]))
+            dbcat['FLAG']=np.concatenate((dbcat['FLAG'],twomasscat['MAG_FLAG'][wsm]))
+            if (verbose > 0):
+                print("Resulting catalog has {:d} entries.".format(dbcat['RA'].size))
+
+#
+#       Establish bounds of regions to be masked.  And magnitude limit where masking will occur...
+#
+#       For 2MASS (VIRCAM observations):
+#           Current cutoff is J=14.8 (roughly a J-band star that is saturated for 30-s exposures)
+#           could also use an exptime+band based calculation (an estimate is provided but not used).
+#
+#        mag2maskrad = [ 0.00022263, -0.00726182,  0.06189586]
+#
+#       For VISTA VY- and J-band images the ghosting is known to be more severe
+#       Therefore, in cases where the relation below gives a larger radius... replace with larger radius for J- and VY-band images.
+#       Currently we are using this for all bands... but for mag > 14.5 there is now an alternate expression...
+#
+        ghost_mask  = np.array([ 8.97832817e-05, -2.60639835e-03, 1.86773994e-02, 6.42125903e-03])
+
+        rmask=np.polyval(ghost_mask,dbcat['MAG'])
+        wsm=np.where(dbcat['MAG'] > 14.5)
+        rmask[wsm]= (60./np.sqrt(3.1415))*np.power(dbcat['MAG'][wsm],-3.5)
+
+        if (verbose > 1):
+            print("DB Catalog based masks (ra,dec,mag,rad[asec])")
+            for i in range(dbcat['MAG'].size):
+                print("{:11.7f} {:11.7f} {:8.3f} {:8.2f} ".format(dbcat['RA'][i],dbcat['DEC'][i],dbcat['MAG'][i],rmask[i]*3600.))
+
+        dcx,dcy=wcs.sky2image(dbcat['RA'],dbcat['DEC'])
+        idcx=np.rint(dcx).astype(np.int64)
+        idcy=np.rint(dcy).astype(np.int64)
+        r_pix=rmask*3600./pix_scale
+    
+
+########################################        
+#
+#   Work the catalog(s)
+#
+    t00=time.time()
+    cx,cy=wcs.sky2image(cat['ALPHAWIN_J2000'],cat['DELTAWIN_J2000'])
+    icx=np.rint(cx).astype(np.int64)
+    icy=np.rint(cy).astype(np.int64)
+
+    rad=np.sqrt(cat['ISOAREA_WORLD']/np.pi)*3600./pix_scale
+    print("WCS applied to cat took: {:.2f} seconds".format(time.time()-t00))
+    print("Image read took: {:.2f} seconds".format(time.time()-t00))
+
+    ####################################################
+#
+#   Leaving this here in case a need arises to write DS9 region files for overlay on images.
+#
+
+#    freg1=open('test_reg_cat.reg','w')
+##    freg2=open('test_reg_img.reg','w')
+##    freg3=open('test_reg_iimg.reg','w')
+#    for i in range(cx.size):
+#        freg1.write('fk5;circle({:.6f},{:.6f},{:.1f}\") # color=red width=1 \n'.format(cat['ALPHAWIN_J2000'][i],cat['DELTAWIN_J2000'][i],rad[i]*pix_scale))
+##        freg2.write('image;circle({:.2f},{:.2f},{:.1f}) # color=blue width=2 \n'.format(cx[i],cy[i],rad[i]))
+##        freg3.write('image;circle({:.2f},{:.2f},{:.1f}) # color=cyan width=2 \n'.format(icx[i],icy[i],rad[i]))
+#
+#    if (args.dbtable is not None):
+#        for i in range(dcx.size):
+#            freg1.write('fk5;circle({:.6f},{:.6f},{:.1f}\") # color=orange  width=1 \n'.format(dbcat['RA'][i],dbcat['DEC'][i],r_pix[i]*pix_scale))
+#    freg1.close()        
+##    freg2.close()        
+##    freg3.cloe()        
+
+    ####################################################
+#    Mask (based on input catalog and isophotal area).
+
+#
+#   Prep "kernel" for masking
+#
+    my,mx=np.indices((2*imaxrad+1,2*imaxrad+1))
+#    rb = np.sqrt((mx - imaxrad)**2 + (my - imaxrad)**2)
+    mx=mx-imaxrad
+    my=my-imaxrad
+    rb = np.sqrt(mx*mx + my*my)
+
+    t00=time.time()
+    rfact=args.irfactor
+    for i in range(cx.size):
+        rlim=rfact*rad[i]
+        if (rlim > imaxrad):
+            rlim=imaxrad
+        wsm3 = np.where(np.logical_and(rb<rlim,np.logical_and(np.logical_and(icx[i]+mx-1>=0,icx[i]+mx-1<nx),np.logical_and(icy[i]+my-1>=0,icy[i]+my-1<ny))))
+        if (mx[wsm3].size > 0):
+            omsk[icy[i]+my[wsm3]-1,icx[i]+mx[wsm3]-1]|=1
+
+    print("Object Mask Build took: {:.2f}".format(time.time()-t00))
+
+
+    ####################################################
+    # Extend mask (based on optional query result).
+
+    if (args.dbtable is not None):
+
+#
+#       Prep "kernel" for masking
+#
+        my,mx=np.indices((2*cmaxrad+1,2*cmaxrad+1))
+#        rb = np.sqrt((mx - cmaxrad)**2 + (my - cmaxrad)**2)
+        mx=mx-cmaxrad
+        my=my-cmaxrad
+        rb = np.sqrt(mx*mx + my*my)
+
+        t00=time.time()
+        rfact=args.crfactor
+        for i in range(dcx.size):
+            rlim=rfact*r_pix[i]
+            if (rlim > cmaxrad):
+                rlim=cmaxrad
+            wsm3 = np.where(np.logical_and(rb<rlim,np.logical_and(np.logical_and(idcx[i]+mx-1>=0,idcx[i]+mx-1<nx),np.logical_and(idcy[i]+my-1>=0,idcy[i]+my-1<ny))))
+            if (mx[wsm3].size > 0):
+                omsk[idcy[i]+my[wsm3]-1,idcx[i]+mx[wsm3]-1]|=2
+
+        print("Object Mask Extension Build took: {:.2f}".format(time.time()-t00))
+
+#   Optionally dump the object mask (for debugging presumably)
+    if (args.omask is not None):
+        ofits=fitsio.FITS(args.omask,'rw',clobber=True)
+        ofits.write(omsk,header=header)
+        ofits.close()
+
+
+    ##############################################
+#
+#   This is where most of the work occurs (median/mean filtering of images to create a background
+#
+    t00=time.time()
+
+    cbkg=np.zeros(sci.shape,dtype=np.float32)
+    ink=0
+    for kern in kvals:
+        ink+=1
+        px=kern[0]
+        py=kern[1]
+        ph=args.kthresh*(2*px+1)*(2*py+1)
+        if (verbose > 0):
+            print("Building background estimate with:")
+            print("    kernel size: {:d} x {:d} ".format(2*px+1,2*py+1,args.kthresh))
+            print("  kernel thresh: {:.3f} ({:d} of {:d} pixels) ".format(args.kthresh,int(ph),(2*px+1)*(2*py+1)))
+            print("    kernel step: {:d} pixels ".format(args.kstep))
+
+        if (UseKernMedian):
+            f1=skyfilter_median(sci,omsk,px,py,ph,pskip=args.kstep,Timing=True)
+        else:
+            f1=skyfilter_mean(sci,omsk,px,py,ph,pskip=args.kstep,Timing=True)
+
+        if (args.bkg is not None):
+            if (args.debug):
+                bfits=fitsio.FITS(re.sub('.fits','_{:d}.fits'.format(ink),args.bkg),'rw',clobber=True)
+                bfits.write(f1,header=header)
+                bfits.close()
+        sci-=f1
+        cbkg+=f1
+
+#    if (args.bkg is not None):
+#        bfits=fitsio.FITS(re.sub('.fits','_x.fits',args.bkg),'rw',clobber=True)
+#        bfits.write(cbkg,header=header)
+#        bfits.close()
+    if (args.bkg is not None):
+        bfits=fitsio.FITS(args.bkg,'rw',clobber=True)
+        bfits.write(cbkg,header=header)
+        bfits.close()
+
+    if (args.sub is not None):
+        bfits=fitsio.FITS(args.sub,'rw',clobber=True)
+        if (args.append_nonsci_hdus):
+            WroteSCI=False
+            for hdu in cfits:
+                x=hdu.read_header()
+                if ('extname' in x):
+                    if (x['extname'] != "SCI"):
+                        bfits.write(hdu.read(),header=hdu.read_header(),extname=x['extname'])
+                    else:
+                        bfits.write(sci,header=header,extname='SCI')
+                        WroteSCI=True
+                else:
+                    bfits.write(hdu.read(),header=hdu.read_header())
+            if (not(WroteSCI)):
+                bfits.write(sci,header=header,extname='SCI')
+        else:
+            bfits.write(sci,header=header)
+        bfits.close()
+
+
+    cfits.close()
+    print("Total end-to-end run time {:.2f} ".format(time.time()-tBegin))
+
+    exit(0) 
+
+if __name__ == '__main__':
+    nir_bkg.main()
+
