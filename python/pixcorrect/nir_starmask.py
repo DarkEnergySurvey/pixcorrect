@@ -12,7 +12,9 @@ import os
 import numpy as np
 
 import despydb.desdbi
-from despyastro import wcsutil, astrometry
+#from despyastro import wcsutil, astrometry
+from despyastro import astrometry
+from esutil     import wcsutil
 
 from pixcorrect import starmask_util as smu
 from pixcorrect.lightbulb_utils import medclip

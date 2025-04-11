@@ -17,7 +17,9 @@ from pixcorrect.clip_mask_utils import polygon_to_pix
 from pixcorrect.region_utils    import loadRegionFile
 
 from despyastro.CCD_corners import update_DESDM_corners
-from despyastro import wcsutil, astrometry
+#from despyastro import wcsutil, astrometry
+from despyastro import astrometry
+from esutil import wcsutil
 
 import despyfits
 from despyfits.maskbits import parse_badpix_mask

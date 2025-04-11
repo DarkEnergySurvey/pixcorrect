@@ -8,7 +8,8 @@ from collections import OrderedDict
 import fitsio
 import numpy as np
 import matplotlib.path
-from despyastro import wcsutil
+#from despyastro import wcsutil
+from esutil import wcsutil
 from despyastro import astrometry
 
 
