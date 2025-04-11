@@ -20,7 +20,9 @@ from pixcorrect.lightbulb_utils import medclip
 import pixcorrect.nircaminfo as nci
 
 from despyastro.CCD_corners import get_DESDM_corners_extent
-from despyastro import wcsutil, astrometry
+#from despyastro import wcsutil, astrometry
+from despyastro import astrometry
+from esutil import wcsutil
 from despymisc.misctime import convert_utc_str_to_nite
 
 import despyfits

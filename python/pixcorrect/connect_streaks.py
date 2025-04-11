@@ -22,7 +22,8 @@ matplotlib.use('pdf')
 import matplotlib.pyplot as pl
 
 import fitsio
-from despyastro import wcsutil
+#from despyastro import wcsutil
+from esutil import wcsutil
 from despyfits.maskbits import parse_badpix_mask
 from despyfits.DESImage import DESImage
 from pixcorrect.PixCorrectDriver import PixCorrectDriver, filelist_to_list

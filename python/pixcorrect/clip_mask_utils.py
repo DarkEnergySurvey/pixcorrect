@@ -5,7 +5,8 @@ import os
 import re
 import numpy as np
 import fitsio
-import despyastro.wcsutil as wcsutil
+#import despyastro.wcsutil as wcsutil
+import esutil.wcsutil as wcsutil
 from pixcorrect import starmask_util as smu
 import sys, copy
 from collections import namedtuple

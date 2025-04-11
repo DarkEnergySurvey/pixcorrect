@@ -8,9 +8,9 @@ import re
 import time
 import numpy as np
 import fitsio
-import despyastro.wcsutil as wcsutil
+#import despyastro.wcsutil as wcsutil
 # This might be the preferred way to handle this in the future (since it is the actual maintained codebase
-#import esutil.wcsutil as wcsutil
+import esutil.wcsutil as wcsutil
 #from pixcorrect import starmask_util as smu
 #from scipy import signal
 from scipy import ndimage
